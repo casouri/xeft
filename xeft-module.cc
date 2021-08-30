@@ -23,6 +23,12 @@ using namespace std;
 
 int plugin_is_GPL_compatible;
 
+#if defined __cplusplus && __cplusplus >= 201103L
+# define EMACS_NOEXCEPT noexcept
+#else
+# define EMACS_NOEXCEPT
+#endif
+
 /*** Xapian stuff */
 
 static const Xapian::valueno DOC_MTIME = 0;
@@ -78,6 +84,7 @@ reindex_file
   time_t db_mtime;
   if (has_doc)
     {
+      // sortable_serialise is for double and we can’t really use it.
       Xapian::Document db_doc = database.get_document(*it_begin);
       db_mtime = (time_t) stoi (db_doc.get_value (DOC_MTIME));
     }
@@ -328,6 +335,14 @@ Fxeft_reindex_file
       signal (env, "xeft-file-error", "DBPATH is not a absolute path");
     }
 
+  // Expand "~" in the filename.
+  emacs_value lisp_args[] = {lisp_path};
+  lisp_path = env->funcall
+    (env, env->intern (env, "expand-file-name"), 1, lisp_args);
+  lisp_args[0] = lisp_dbpath;
+  lisp_dbpath = env->funcall
+    (env, env->intern (env, "expand-file-name"), 1, lisp_args);
+
   emacs_value lisp_lang = nargs < 3 ? nil (env) : args[2];
   emacs_value lisp_force = nargs < 4 ? nil (env) : args[3];
   
@@ -389,6 +404,10 @@ Fxeft_query_term
       signal (env, "xeft-file-error", "DBPATH is not a absolute path");
     }
 
+  emacs_value lisp_args[] = {lisp_dbpath};
+  lisp_dbpath = env->funcall
+    (env, env->intern (env, "expand-file-name"), 1, lisp_args);
+
   string term = copy_string (env, lisp_term);
   string dbpath = copy_string (env, lisp_dbpath);
   int offset = env->extract_integer (env, lisp_offset);
@@ -420,7 +439,7 @@ Fxeft_query_term
 }
 
 int
-emacs_module_init (struct emacs_runtime *ert) noexcept
+emacs_module_init (struct emacs_runtime *ert) EMACS_NOEXCEPT
 {
   emacs_env *env = ert->get_environment (ert);
 

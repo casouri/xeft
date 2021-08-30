@@ -1,4 +1,4 @@
-;;; xeft.el --- Yay note-taking      -*- lexical-binding: t; -*-
+;;; xeft.el --- Deft feat. Xapian      -*- lexical-binding: t; -*-
 
 ;; Author: Yuan Fu <casouri@gmail.com>
 
@@ -42,9 +42,11 @@
   '((t . (:inherit highlight :extend t)))
   "Face for highlighting in the preview buffer.")
 
-(defcustom xeft-load-file-hook nil
-  "Functions run before xeft loads a file into database."
-  :type 'hook)
+(defcustom xeft-filename-fn
+  (lambda (search-phrase)
+    (concat search-phrase ".txt"))
+  "A function that takes the search phrase and returns a filename."
+  :type 'function)
 
 ;;; Compile
 
@@ -93,6 +95,7 @@
     map)
   "Mode map for `xeft-mode'.")
 
+(defvar xeft--need-refresh)
 (define-derived-mode xeft-mode fundamental-mode
   "Xeft" "Search for notes and display summaries."
   (let ((inhibit-read-only t))
@@ -102,8 +105,13 @@
     (visual-line-mode)
     (setq default-directory xeft-directory
           xeft--last-window-config (current-window-configuration))
-    (add-hook 'after-change-functions
+    ;; Hook ‘after-change-functions’ is too primitive, binding to that
+    ;; will bring all kinds of problems. For example, with
+    ;; electric-pairs.
+    (add-hook 'post-command-hook
               (lambda (&rest _) (xeft-refresh)) 0 t)
+    (add-hook 'after-change-functions
+              (lambda (&rest _) (setq xeft--need-refresh t)) 0 t)
     (add-hook 'window-size-change-functions
               (lambda (&rest _) (xeft-refresh))0 t)
     (add-hook 'kill-buffer-hook
@@ -122,6 +130,12 @@
 (defun xeft ()
   "Start Xeft."
   (interactive)
+  (when (not (file-name-absolute-p xeft-directory))
+    (user-error "XEFT-DIRECTORY must be an absolute path"))
+  (when (not (file-exists-p xeft-directory))
+    (mkdir xeft-directory t))
+  (when (not (file-name-absolute-p xeft-database))
+    (user-error "XEFT-DATABASE must be an absolute path"))
   (unless (require 'xeft-module nil t)
     (when (y-or-n-p
            "Xeft needs the dynamic module to work, compile it now? ")
@@ -136,8 +150,9 @@
   "Create a new note with the current search phrase as the title."
   (interactive)
   (let* ((search-phrase (xeft--get-search-phrase))
-         (file-path (expand-file-name (concat search-phrase ".txt")
-                                      xeft-directory))
+         (file-path (expand-file-name
+                     (funcall xeft-filename-fn search-phrase)
+                     xeft-directory))
          (exists-p (file-exists-p file-path)))
     ;; If there is no match, create the file without confirmation,
     ;; otherwise prompt for confirmation. NOTE: this is not DRY, but
@@ -193,7 +208,7 @@
   "Insert the content of FILE, and cache it."
   (if-let ((content (alist-get file xeft--cache nil nil #'equal)))
       (insert content)
-    (insert-file-contents file)
+    (insert-file-contents file nil nil nil t)
     (setf (alist-get file xeft--cache nil nil #'equal)
           (buffer-string))))
 
@@ -287,6 +302,7 @@ search phrase the user typed."
          (car (last (split-string search-phrase))))
         title excerpt)
     (with-current-buffer (xeft--work-buffer)
+      (setq buffer-undo-list t)
       (widen)
       (erase-buffer)
       (xeft--cached-insert file)
@@ -341,13 +357,18 @@ search phrase the user typed."
                 "." (file-name-base file)))))
    (directory-files xeft-directory t nil t)))
 
+(defvar-local xeft--need-refresh t
+  "If change is made to the buffer, set this to t.
+Once refreshed the buffer, set this to nil.")
+
 (defun xeft-refresh (&optional full)
   "Search for notes and display their summaries.
 By default, only display the first 50 results. If FULL is
 non-nil, display all results."
   (interactive)
   (let ((search-phrase (xeft--get-search-phrase)))
-    (when (derived-mode-p 'xeft-mode)
+    (when (and (derived-mode-p 'xeft-mode)
+               xeft--need-refresh)
       (let* ((phrase-empty (equal search-phrase ""))
              (file-list
               (if phrase-empty
@@ -357,34 +378,40 @@ non-nil, display all results."
         (when (and (null full) (> (length file-list) 50))
           (setq file-list (cl-subseq file-list 0 50)))
         (let ((inhibit-read-only t)
+              ;; We don’t want ‘after-change-functions’ to run when we
+              ;; refresh the buffer, because we set
+              ;; ‘xeft--need-refresh’ in that hook.
               (inhibit-modification-hooks t)
               (orig-point (point)))
           ;; Actually insert the new content.
           (goto-char (point-min))
           (forward-line 2)
           (delete-region (point) (point-max))
-          (when (while-no-input
-                  (let ((start (point)))
-                    (insert (if file-list
-                                (with-temp-buffer
-                                  (dolist (file file-list)
-                                    (xeft--insert-file-excerpt
-                                     file search-phrase))
-                                  (buffer-string))
-                              ;; NOTE: this string is referred in
-                              ;; ‘xeft-create-note’.
-                              "Press RET to create a new note"))
-                    ;; If we use (- start 2), emacs-rime cannot work.
-                    (put-text-property (- start 1) (point)
-                                       'read-only t))
-                  (xeft--highlight-search-phrase)
-                  (set-buffer-modified-p nil)
-                  ;; Save excursion wouldn’t work since we erased the
-                  ;; buffer and re-inserted contents.
-                  (goto-char orig-point)
-                  ;; Re-apply highlight.
-                  (xeft--highlight-file-at-point))
-            (goto-char orig-point)))))))
+          (if (while-no-input
+                (let ((start (point)))
+                  (insert (if file-list
+                              (with-temp-buffer
+                                (dolist (file file-list)
+                                  (xeft--insert-file-excerpt
+                                   file search-phrase))
+                                (buffer-string))
+                            ;; NOTE: this string is referred in
+                            ;; ‘xeft-create-note’.
+                            "Press RET to create a new note"))
+                  ;; If we use (- start 2), emacs-rime cannot work.
+                  (put-text-property (- start 1) (point)
+                                     'read-only t))
+                (xeft--highlight-search-phrase)
+                (set-buffer-modified-p nil)
+                ;; Save excursion wouldn’t work since we erased the
+                ;; buffer and re-inserted contents.
+                (goto-char orig-point)
+                ;; Re-apply highlight.
+                (xeft--highlight-file-at-point))
+              ;; If interrupted, go back.
+              (goto-char orig-point)
+            ;; If finished, update this variable.
+            (setq xeft--need-refresh nil)))))))
 
 ;;; Highlight matched phrases
 
