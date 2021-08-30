@@ -420,7 +420,7 @@ Fxeft_query_term
 }
 
 int
-emacs_module_init (struct emacs_runtime *ert)
+emacs_module_init (struct emacs_runtime *ert) noexcept
 {
   emacs_env *env = ert->get_environment (ert);
 
