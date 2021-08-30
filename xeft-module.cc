@@ -150,17 +150,20 @@ query_term
   try
     {
       query = parser.parse_query
-        // Support CJK.
+        // CJK_NGRAM is the flag for CJK support. PARTIAL makes
+        // interactive search more stable. DEFAULT enables AND OR and
+        // +/-.
         (term, Xapian::QueryParser::FLAG_CJK_NGRAM
-     | Xapian::QueryParser::FLAG_DEFAULT);
+         | Xapian::QueryParser::FLAG_PARTIAL
+         | Xapian::QueryParser::FLAG_DEFAULT);
     }
   // If the syntax is wrong (xxx AND xxx), Xapian throws this error.
   // Try again without enabling any special syntax.
   catch (Xapian::QueryParserError &e)
     {
       query = parser.parse_query
-        // Support CJK.
-        (term, Xapian::QueryParser::FLAG_CJK_NGRAM);
+        (term, Xapian::QueryParser::FLAG_CJK_NGRAM
+         | Xapian::QueryParser::FLAG_PARTIAL);
     }
   
   Xapian::Enquire enquire (database);

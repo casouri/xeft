@@ -98,7 +98,8 @@
 (defvar xeft--need-refresh)
 (define-derived-mode xeft-mode fundamental-mode
   "Xeft" "Search for notes and display summaries."
-  (let ((inhibit-read-only t))
+  (let ((inhibit-read-only t)
+        (buffer-undo-list t))
     ;; Reindex all files.
     (dolist (file (xeft--file-list))
       (xeft-reindex-file file xeft-database))
@@ -106,14 +107,16 @@
     (setq default-directory xeft-directory
           xeft--last-window-config (current-window-configuration))
     ;; Hook ‘after-change-functions’ is too primitive, binding to that
-    ;; will bring all kinds of problems. For example, with
-    ;; electric-pairs.
+    ;; will cause problems with electric-pairs.
     (add-hook 'post-command-hook
-              (lambda (&rest _) (xeft-refresh)) 0 t)
+              (lambda (&rest _)
+                (when xeft--need-refresh
+                  (xeft-refresh)))
+              0 t)
     (add-hook 'after-change-functions
               (lambda (&rest _) (setq xeft--need-refresh t)) 0 t)
     (add-hook 'window-size-change-functions
-              (lambda (&rest _) (xeft-refresh))0 t)
+              (lambda (&rest _) (xeft-refresh)) 0 t)
     (add-hook 'kill-buffer-hook
               (lambda ()
                 (when xeft--last-window-config
@@ -361,22 +364,41 @@ search phrase the user typed."
   "If change is made to the buffer, set this to t.
 Once refreshed the buffer, set this to nil.")
 
+(defun xeft--tighten-search-phrase (phrase)
+  "Basically insert AND between each term in PHRASE."
+  (let ((lst (split-string phrase)))
+    (string-join
+     (append (cl-loop for idx from 0 to (- (length lst) 2)
+                      for this = (nth idx lst)
+                      for next = (nth (1+ idx) lst)
+                      collect this
+                      if (not (or (equal this "OR")
+                                  (memq (aref this 0) '(?+ ?-))
+                                  (equal next "OR")
+                                  (memq (aref next 0) '(?+ ?-))))
+                      collect "AND")
+             (last lst))
+     " ")))
+
 (defun xeft-refresh (&optional full)
   "Search for notes and display their summaries.
-By default, only display the first 50 results. If FULL is
+By default, only display the first 30 results. If FULL is
 non-nil, display all results."
   (interactive)
-  (let ((search-phrase (xeft--get-search-phrase)))
-    (when (and (derived-mode-p 'xeft-mode)
-               xeft--need-refresh)
+  (when (derived-mode-p 'xeft-mode)
+    (let ((search-phrase (xeft--get-search-phrase)))
       (let* ((phrase-empty (equal search-phrase ""))
              (file-list
               (if phrase-empty
                   (cl-sort (xeft--file-list) #'file-newer-than-file-p)
-                (xeft-query-term search-phrase xeft-database
-                                 0 (if full 2147483647 50)))))
-        (when (and (null full) (> (length file-list) 50))
-          (setq file-list (cl-subseq file-list 0 50)))
+                (xeft-query-term
+                 (xeft--tighten-search-phrase search-phrase)
+                 xeft-database
+                 0 (if full 2147483647 30))))
+             (list-clipped nil))
+        (when (and (null full) (> (length file-list) 30))
+          (setq file-list (cl-subseq file-list 0 30)
+                list-clipped t))
         (let ((inhibit-read-only t)
               ;; We don’t want ‘after-change-functions’ to run when we
               ;; refresh the buffer, because we set
@@ -389,15 +411,20 @@ non-nil, display all results."
           (delete-region (point) (point-max))
           (if (while-no-input
                 (let ((start (point)))
-                  (insert (if file-list
-                              (with-temp-buffer
-                                (dolist (file file-list)
-                                  (xeft--insert-file-excerpt
-                                   file search-phrase))
-                                (buffer-string))
-                            ;; NOTE: this string is referred in
-                            ;; ‘xeft-create-note’.
-                            "Press RET to create a new note"))
+                  (if file-list
+                      (dolist (file file-list)
+                        (xeft--insert-file-excerpt
+                         file search-phrase))
+                    ;; NOTE: this string is referred in
+                    ;; ‘xeft-create-note’.
+                    "Press RET to create a new note")
+                  (when list-clipped
+                    (insert
+                     (format
+                      "[Only showing the first 30 results, type %s to show all of them]\n"
+                      (key-description
+                       (where-is-internal #'xeft-refresh-full
+                                          xeft-mode-map t)))))
                   ;; If we use (- start 2), emacs-rime cannot work.
                   (put-text-property (- start 1) (point)
                                      'read-only t))
