@@ -321,7 +321,7 @@ NILP (emacs_env *env, emacs_value val)
 
 typedef emacs_value (*emacs_subr) (emacs_env *env,
                                    ptrdiff_t nargs, emacs_value *args,
-                                   void *data);
+                                   void *data) EMACS_NOEXCEPT;
 
 static void
 define_function
