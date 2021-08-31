@@ -82,7 +82,7 @@
   "Return the work buffer for Xeft. Used for holding file contents."
   (get-buffer-create " *xeft work*"))
 
-(defun xeft--after-save-hook ()
+(defun xeft--after-save ()
   "Reindex the file."
   (xeft-reindex-file (buffer-file-name) xeft-database))
 
@@ -90,6 +90,7 @@
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "RET") #'xeft-create-note)
     (define-key map (kbd "C-c C-g") #'xeft-refresh-full)
+    (define-key map (kbd "C-c C-r") #'xeft-full-reindex)
     (define-key map (kbd "C-n") #'xeft-next)
     (define-key map (kbd "C-p") #'xeft-previous)
     map)
@@ -199,21 +200,16 @@
     (goto-char (point-min))
     (end-of-line)))
 
+(defun xeft-full-reindex ()
+  "Do a full reindex of all files."
+  (interactive)
+  (dolist (file (xeft--file-list))
+    (xeft-reindex-file file xeft-database)))
+
 ;;; Draw
 
 (defvar xeft--preview-window nil
   "Xeft shows file previews in this window.")
-
-(defvar xeft--cache nil
-  "An alist of (filename . file content).")
-
-(defun xeft--cached-insert (file)
-  "Insert the content of FILE, and cache it."
-  (if-let ((content (alist-get file xeft--cache nil nil #'equal)))
-      (insert content)
-    (insert-file-contents file nil nil nil t)
-    (setf (alist-get file xeft--cache nil nil #'equal)
-          (buffer-string))))
 
 (defun xeft--get-search-phrase ()
   "Return the search phrase. Assumes current buffer is a xeft buffer."
@@ -226,7 +222,7 @@
   "View file at point."
   (interactive)
   (find-file (button-get (button-at (point)) 'path))
-  (add-hook 'after-save-hook #'xeft--after-save-hook 0 t))
+  (add-hook 'after-save-hook #'xeft--after-save 0 t))
 
 (defun xeft--preview-file (file &optional select)
   "View FILE in another window.
@@ -281,7 +277,10 @@ If SELECT is non-nil, select the buffer after displaying it."
 
 (defun xeft--highlight-search-phrase ()
   "Highlight search phrases in buffer."
-  (let ((keyword-list (split-string (xeft--get-search-phrase)))
+  (let ((keyword-list (cl-remove-if
+                       (lambda (word)
+                         (member word '("OR" "AND" "XOR" "NOT")))
+                       (split-string (xeft--get-search-phrase))))
         (inhibit-read-only t))
     (dolist (keyword keyword-list)
       (goto-char (point-min))
@@ -306,9 +305,9 @@ search phrase the user typed."
         title excerpt)
     (with-current-buffer (xeft--work-buffer)
       (setq buffer-undo-list t)
-      (widen)
-      (erase-buffer)
-      (xeft--cached-insert file)
+      ;; We don’t need to cache file content, because we only insert
+      ;; 15 results. And adding cache (with alist) is actually slower.
+      (insert-file-contents file nil nil nil t)
       (goto-char (point-min))
       (search-forward "#+TITLE: " (line-end-position) t)
       (setq title (buffer-substring-no-properties
@@ -372,9 +371,9 @@ Once refreshed the buffer, set this to nil.")
                       for this = (nth idx lst)
                       for next = (nth (1+ idx) lst)
                       collect this
-                      if (not (or (equal this "OR")
+                      if (not (or (member this '("AND" "NOT" "OR" "XOR"))
                                   (memq (aref this 0) '(?+ ?-))
-                                  (equal next "OR")
+                                  (member next '("AND" "NOT" "OR" "XOR"))
                                   (memq (aref next 0) '(?+ ?-))))
                       collect "AND")
              (last lst))
@@ -382,7 +381,7 @@ Once refreshed the buffer, set this to nil.")
 
 (defun xeft-refresh (&optional full)
   "Search for notes and display their summaries.
-By default, only display the first 30 results. If FULL is
+By default, only display the first 15 results. If FULL is
 non-nil, display all results."
   (interactive)
   (when (derived-mode-p 'xeft-mode)
@@ -394,10 +393,10 @@ non-nil, display all results."
                 (xeft-query-term
                  (xeft--tighten-search-phrase search-phrase)
                  xeft-database
-                 0 (if full 2147483647 30))))
+                 0 (if full 2147483647 15))))
              (list-clipped nil))
-        (when (and (null full) (> (length file-list) 30))
-          (setq file-list (cl-subseq file-list 0 30)
+        (when (and (null full) (> (length file-list) 15))
+          (setq file-list (cl-subseq file-list 0 15)
                 list-clipped t))
         (let ((inhibit-read-only t)
               ;; We don’t want ‘after-change-functions’ to run when we
@@ -421,7 +420,7 @@ non-nil, display all results."
                   (when list-clipped
                     (insert
                      (format
-                      "[Only showing the first 30 results, type %s to show all of them]\n"
+                      "[Only showing the first 15 results, type %s to show all of them]\n"
                       (key-description
                        (where-is-internal #'xeft-refresh-full
                                           xeft-mode-map t)))))
