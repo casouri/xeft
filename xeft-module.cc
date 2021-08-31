@@ -321,7 +321,7 @@ NILP (emacs_env *env, emacs_value val)
 
 typedef emacs_value (*emacs_subr) (emacs_env *env,
                                    ptrdiff_t nargs, emacs_value *args,
-                                   void *data) EMACS_NOEXCEPT;
+                                   void *data);
 
 static void
 define_function
@@ -352,7 +352,9 @@ static const char* xeft_reindex_file_doc =
 
 static emacs_value
 Fxeft_reindex_file
-(emacs_env *env, ptrdiff_t nargs, emacs_value args[], void *data) {
+(emacs_env *env, ptrdiff_t nargs, emacs_value args[], void *data)
+  EMACS_NOEXCEPT
+{
 
   // Decode arguments.
   emacs_value lisp_path = args[0];
@@ -440,7 +442,9 @@ static const char *xeft_query_term_doc =
 
 static emacs_value
 Fxeft_query_term
-(emacs_env *env, ptrdiff_t nargs, emacs_value args[], void *data) {
+(emacs_env *env, ptrdiff_t nargs, emacs_value args[], void *data)
+  EMACS_NOEXCEPT
+{
   // Decode arguments.
   emacs_value lisp_term = args[0];
   emacs_value lisp_dbpath = args[1];
