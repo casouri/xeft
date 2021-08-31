@@ -1,11 +1,13 @@
-# What is this
-
-Xeft is
+# What is Xeft
 
 1. A dynamic module that exposes a very basic indexing feature to
    Emacs Lisp, that lets you index and search a text files very fast.
-   I tried to use grep and ripgrep to build my note-searching interface,
-   but they are too slow; with Xeft I can search on every key press.
+
+```emacs-lisp
+;; Querying my ~40MB worth of notes.
+(benchmark-run 100 (xeft-query-term "common lisp" xeft-database 0 10))
+;;=> (0.031512 0 0.0)
+```
 
 2. A note taking interface like Deft, built on the dynamic module.
 
@@ -44,6 +46,8 @@ Both file path and database path must be absolute path.
 # How to use the note-taking interface
 
 It is essentially the same as [Zeft](https://github.com/casouri/zeft).
+To try it out, build the dynamic module or download prebuilt ones from
+release page. Then type `M-x xeft RET`.
 
 # How to build the dynamic module
 
@@ -60,9 +64,10 @@ Then, build the module by
 make PREFIX=/opt/local
 ```
 
-Here `/opt/local` is the default prefix of macports.
+Here `/opt/local` is the default prefix of macports, which is what I
+used to install Xapian.
 
-# Disclaimer
+# Beware
 
 Since its a dynamic module, if Xeft goes wrong, it will crash Emacs.
 

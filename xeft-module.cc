@@ -5,6 +5,7 @@
 #include <vector>
 #include <exception>
 #include <iterator>
+#include <cstdarg>
 
 #include <stdlib.h>
 #include <assert.h>
@@ -28,6 +29,20 @@ int plugin_is_GPL_compatible;
 #else
 # define EMACS_NOEXCEPT
 #endif
+
+#define CHECK_EXIT(env) \
+  if (env->non_local_exit_check (env) \
+      != emacs_funcall_exit_return)   \
+    return NULL;
+
+/* A few notes: The database we use, WritableDatabase, will not throw
+   DatabaseModifiedError, so we don’t need to handle that. For query,
+   we first try to parse it with special syntax enabled, i.e., with
+   AND, OR, +/-, etc. If that doesn’t parse, we’ll just parse it as
+   plain text.
+
+   REF: https://lists.xapian.org/pipermail/xapian-discuss/2021-August/009906.html
+ */ 
 
 /*** Xapian stuff */
 
@@ -145,6 +160,9 @@ query_term
   Xapian::Stem stemmer (lang);
   parser.set_stemmer (stemmer);
   parser.set_stemming_strategy (Xapian::QueryParser::STEM_SOME);
+  // Partial match (FLAG_PARTIAL) needs the database to expand
+  // wildcards.
+  parser.set_database(database);
 
   Xapian::Query query;
   try
@@ -157,7 +175,7 @@ query_term
          | Xapian::QueryParser::FLAG_PARTIAL
          | Xapian::QueryParser::FLAG_DEFAULT);
     }
-  // If the syntax is wrong (xxx AND xxx), Xapian throws this error.
+  // If the syntax is syntactically wrong, Xapian throws this error.
   // Try again without enabling any special syntax.
   catch (Xapian::QueryParserError &e)
     {
@@ -191,7 +209,7 @@ query_term
 
 /*** Module definition */
 
-/**** Convenient functions */
+/**** Copied from Philipp’s documents */
 
 static bool
 copy_string_contents
@@ -223,16 +241,6 @@ copy_string_contents
 }
 
 static void
-bind_function (emacs_env *env, const char *name, emacs_value Sfun)
-{
-  emacs_value Qfset = env->intern (env, "fset");
-  emacs_value Qsym = env->intern (env, name);
-
-  emacs_value args[] = {Qsym, Sfun};
-  env->funcall (env, Qfset, 2, args);
-}
-
-static void
 provide (emacs_env *env, const char *feature)
 {
   emacs_value Qfeat = env->intern (env, feature);
@@ -242,15 +250,28 @@ provide (emacs_env *env, const char *feature)
   env->funcall (env, Qprovide, 1, args);
 }
 
+/**** Convenient functions */
+
 static emacs_value
-nil (emacs_env *env) {
-  return env->intern (env, "nil");
+intern (emacs_env *env, const char *name)
+{
+  return env->intern (env, name);
 }
 
 static emacs_value
-cons (emacs_env *env, emacs_value car, emacs_value cdr) {
-  emacs_value args[] = {car, cdr};
-  return env->funcall (env, env->intern(env, "cons"), 2, args);
+funcall (emacs_env *env, const char* fn, ptrdiff_t nargs, ...)
+{
+  va_list argv;
+  va_start (argv, nargs);
+  emacs_value *args = (emacs_value *) malloc(nargs * sizeof(emacs_value));
+  for (int idx = 0; idx < nargs; idx++)
+    {
+      args[idx] = va_arg (argv, emacs_value);
+    }
+  va_end (argv);
+  emacs_value val = env->funcall (env, intern (env, fn), nargs, args);
+  free (args);
+  return val;
 }
 
 static void
@@ -258,8 +279,9 @@ signal (emacs_env *env, const char *name, const char *message)
 {
   env->non_local_exit_signal
     (env, env->intern (env, name),
-     cons (env, env->make_string (env, message, strlen (message)),
-           nil (env)));
+     funcall (env, "cons", 2,
+              env->make_string (env, message, strlen (message)),
+              intern (env, "nil")));
 }
 
 static string
@@ -280,141 +302,164 @@ copy_string (emacs_env *env, emacs_value value)
     }
 }
 
-void
+static void
 define_error
 (emacs_env *env, const char *name,
  const char *description, const char *parent)
 {
-  emacs_value args[] = {
-    env->intern (env, name),
-    env->make_string (env, description, strlen (description)),
-    env->intern (env, parent)
-  };
-  env->funcall (env, env->intern (env, "define-error"), 3, args);
+  funcall (env, "define-error", 3,
+           intern (env, name),
+           env->make_string (env, description, strlen (description)),
+           intern (env, parent));
 }
 
-emacs_value
-file_name_absolute_p (emacs_env *env, emacs_value path)
-{
-  emacs_value args[] = {path};
-  return env->funcall
-    (env, env->intern (env, "file-name-absolute-p"), 1, args);
-}
-
-bool
-nilp (emacs_env *env, emacs_value val)
+static bool
+NILP (emacs_env *env, emacs_value val)
 {
   return !env->is_not_nil (env, val);
 }
 
+typedef emacs_value (*emacs_subr) (emacs_env *env,
+                                   ptrdiff_t nargs, emacs_value *args,
+                                   void *data);
+
+static void
+define_function
+(emacs_env *env, const char *name, ptrdiff_t min_arity,
+ ptrdiff_t max_arity, emacs_subr function, const char *documentation)
+{
+  emacs_value fn = env->make_function
+    (env, min_arity, max_arity, function, documentation, NULL);
+  funcall (env, "fset", 2, intern (env, name), fn);
+}
+
+/**** Exposed functions */
+
 static const char* xeft_reindex_file_doc =
-  "Refindex file at PATH with database at DBPATH"
-  "Both paths has to be absolute.  Normally, this function only"
-  "reindex a file if it has been modified since last indexed,"
-  "but if FORCE is non-nil, this function will always reindex."
-  "Return non-nil if actually reindexed the file, return nil if not."
-  ""
-  "LANG is the language used by the indexer, it tells Xapian how to"
-  "reduce words to stems and vice versa, e.g., apples <-> apple."
-  "A full list of possible languages can be found at"
-  "https://xapian.org/docs/apidoc/html/classXapian_1_1Stem.html."
-  "By default, LANG is \"en\"."
-  ""
-  "\(PATH DBPATH &optional LANG FORCE)";
+  "Refindex file at PATH with database at DBPATH\n"
+  "Both paths has to be absolute.  Normally, this function only\n"
+  "reindex a file if it has been modified since last indexed,\n"
+  "but if FORCE is non-nil, this function will always reindex.\n"
+  "Return non-nil if actually reindexed the file, return nil if not.\n"
+  "\n"
+  "LANG is the language used by the indexer, it tells Xapian how to\n"
+  "reduce words to word stems, e.g., apples <-> apple.\n"
+  "A full list of possible languages can be found at\n"
+  "https://xapian.org/docs/apidoc/html/classXapian_1_1Stem.html.\n"
+  "By default, LANG is \"en\".\n"
+  "\n"
+  "(fn PATH DBPATH &optional LANG FORCE)";
 
 static emacs_value
 Fxeft_reindex_file
 (emacs_env *env, ptrdiff_t nargs, emacs_value args[], void *data) {
-  
+
+  // Decode arguments.
   emacs_value lisp_path = args[0];
   emacs_value lisp_dbpath = args[1];
 
-  if (nilp (env, file_name_absolute_p (env, lisp_path)))
+  if (NILP (env, funcall (env, "file-name-absolute-p", 1, lisp_path)))
     {
       signal (env, "xeft-file-error", "PATH is not a absolute path");
+      return NULL;
     }
-  if (nilp (env, file_name_absolute_p (env, lisp_dbpath)))
+  if (NILP (env, funcall (env, "file-name-absolute-p", 1, lisp_dbpath)))
     {
       signal (env, "xeft-file-error", "DBPATH is not a absolute path");
+      return NULL;
     }
 
   // Expand "~" in the filename.
   emacs_value lisp_args[] = {lisp_path};
-  lisp_path = env->funcall
-    (env, env->intern (env, "expand-file-name"), 1, lisp_args);
-  lisp_args[0] = lisp_dbpath;
-  lisp_dbpath = env->funcall
-    (env, env->intern (env, "expand-file-name"), 1, lisp_args);
+  lisp_path = funcall (env, "expand-file-name", 1, lisp_path);
+  lisp_dbpath = funcall (env, "expand-file-name", 1, lisp_dbpath);
 
-  emacs_value lisp_lang = nargs < 3 ? nil (env) : args[2];
-  emacs_value lisp_force = nargs < 4 ? nil (env) : args[3];
+  emacs_value lisp_lang = nargs < 3 ? intern (env, "nil") : args[2];
+  emacs_value lisp_force = nargs < 4 ? intern (env, "nil") : args[3];
   
   string path = copy_string (env, lisp_path);
   string dbpath = copy_string (env, lisp_dbpath);
-  bool force = !nilp (env, lisp_force);
-  string lang = nilp (env, lisp_lang) ?
+  bool force = !NILP (env, lisp_force);
+  CHECK_EXIT (env)
+  string lang = NILP (env, lisp_lang) ?
     "en" : copy_string (env, lisp_lang);
-
+  CHECK_EXIT (env)
+  
+  // Do the work.
   bool indexed;
   try
     {
       indexed = reindex_file (path, dbpath, lang, force);
+      return indexed ? intern (env, "t") : intern (env, "nil");
     }
   catch (xeft_cannot_open_file &e)
     {
       signal (env, "xeft-file-error", "Cannot open the file");
+      return NULL;
     }
   catch (Xapian::Error &e)
     {
       signal (env, "xeft-xapian-error", e.get_description().c_str());
+      return NULL;
     }
   catch (exception &e)
     {
       signal (env, "xeft-error", "Something went wrong");
+      return NULL;
     }
-  
-  return indexed ? env->intern (env, "t") : nil (env);
 }
 
 static const char *xeft_query_term_doc =
-  "Query for TERM in database at DBPATH."
-  "Paging is supported by OFFSET and PAGE-SIZE. OFFSET specifies page"
-  "start, and PAGE-SIZE the size. For example, if a page is 10 entries,"
-  "OFFSET and PAGE-SIZE would be first 0 and 10, then 10 and 10, and"
-  "so on."
-  ""
-  "If a file in the result doesn't exist anymore, it is removed from"
-  "the database, and not included in the return value."
-  ""
-  "LANG is the language used by the indexer, it tells Xapian how to"
-  "reduce words to stems and vice versa, e.g., apples <-> apple."
-  "A full list of possible languages can be found at"
-  "https://xapian.org/docs/apidoc/html/classXapian_1_1Stem.html."
-  "By default, LANG is \"en\"."
-  ""
-  "\(TERM DBPATH OFFSET PAGE-SIZE &optional LANG)";
+  "Query for TERM in database at DBPATH.\n"
+  "Paging is supported by OFFSET and PAGE-SIZE. OFFSET specifies page\n"
+  "start, and PAGE-SIZE the size. For example, if a page is 10 entries,\n"
+  "OFFSET and PAGE-SIZE would be first 0 and 10, then 10 and 10, and\n"
+  "so on.\n"
+  "\n"
+  "If a file in the result doesn't exist anymore, it is removed from\n"
+  "the database, and is not included in the return value.\n"
+  "\n"
+  "LANG is the language used by the indexer, it tells Xapian how to\n"
+  "reduce words to word stems, e.g., apples <-> apple.\n"
+  "A full list of possible languages can be found at\n"
+  "https://xapian.org/docs/apidoc/html/classXapian_1_1Stem.html.\n"
+  "By default, LANG is \"en\".\n"
+  "\n"
+  "TERM can use common Xapian syntax like AND, OR, and +/-.\n"
+  "Specifically, this function supports:\n"
+  "\n"
+  "    Boolean operators: AND, OR, XOR, NOT\n"
+  "    Parenthesized expression: ()\n"
+  "    Love/hate terms: +/-\n"
+  "    Exact match: \"\"\n"
+  "\n"
+  "If TERM contains syntactic errors, like \"a AND AND b\",\n"
+  "it is treated as a plain term.\n"
+  "\n"
+  "(fn TERM DBPATH OFFSET PAGE-SIZE &optional LANG)";
 
 static emacs_value
 Fxeft_query_term
 (emacs_env *env, ptrdiff_t nargs, emacs_value args[], void *data) {
+  // Decode arguments.
   emacs_value lisp_term = args[0];
   emacs_value lisp_dbpath = args[1];
   emacs_value lisp_offset = args[2];
   emacs_value lisp_page_size = args[3];
 
-  if (nilp (env, file_name_absolute_p (env, lisp_dbpath)))
+  if (NILP (env, funcall (env, "file-name-absolute-p", 1, lisp_dbpath)))
     {
       signal (env, "xeft-file-error", "DBPATH is not a absolute path");
+      return NULL;
     }
 
-  emacs_value lisp_args[] = {lisp_dbpath};
-  lisp_dbpath = env->funcall
-    (env, env->intern (env, "expand-file-name"), 1, lisp_args);
+  lisp_dbpath = funcall (env, "expand-file-name", 1, lisp_dbpath);
 
   string term = copy_string (env, lisp_term);
   string dbpath = copy_string (env, lisp_dbpath);
   int offset = env->extract_integer (env, lisp_offset);
   int page_size = env->extract_integer (env, lisp_page_size);
+  CHECK_EXIT (env)
 
   vector<string> result;
   try
@@ -424,21 +469,24 @@ Fxeft_query_term
   catch (Xapian::Error &e)
     {
       signal (env, "xeft-xapian-error", e.get_description().c_str());
+      return NULL;
     }
   catch (exception &e)
     {
       signal (env, "xeft-error", "Something went wrong");
+      return NULL;
     }
 
   vector<string>::iterator it;
-  emacs_value ret = nil (env);
+  emacs_value ret = intern (env, "nil");
   for (it = result.begin(); it != result.end(); it++) {
-    ret = cons (env, env->make_string(env, it->c_str(),
-                                     strlen(it->c_str())),
-                ret);
+    ret = funcall (env, "cons", 2,
+                   env->make_string
+                   (env, it->c_str(), strlen(it->c_str())),
+                   ret);
+    CHECK_EXIT (env)
   }
-
-  return env->funcall (env, env->intern (env, "reverse"), 1, &ret);
+  return funcall (env, "reverse", 1, ret);
 }
 
 int
@@ -450,15 +498,10 @@ emacs_module_init (struct emacs_runtime *ert) EMACS_NOEXCEPT
   define_error (env, "xeft-xapian-error", "Xapian error", "xeft-error");
   define_error (env, "xeft-file-error", "Cannot open file", "xeft-error");
 
-  bind_function (env, "xeft-reindex-file",
-                 env->make_function
-                 (env, 2, 3, &Fxeft_reindex_file,
-                  xeft_reindex_file_doc, NULL));
-
-  bind_function (env, "xeft-query-term",
-                 env->make_function
-                 (env, 4, 4, &Fxeft_query_term,
-                  xeft_query_term_doc, NULL));
+  define_function(env, "xeft-reindex-file", 2, 3,
+                  &Fxeft_reindex_file, xeft_reindex_file_doc);
+  define_function(env, "xeft-query-term", 4, 4,
+                  &Fxeft_query_term, xeft_query_term_doc);
 
   provide (env, "xeft-module");
 

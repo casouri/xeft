@@ -5,6 +5,31 @@
 ;;; This file is NOT part of GNU Emacs
 
 ;;; Commentary:
+;;
+;; Usage:
+;;
+;; Type M-x xeft RET, and you should see the Xeft buffer. Type in your
+;; search phrase in the first line and the results will show up as you
+;; type. Press C-n and C-p to go through each file. You can preview a
+;; file by pressing SPC when the point is on a file, or click the file
+;; with the mouse. Press RET to open the file in the same window.
+;;
+;; Type C-c C-g to force a refresh. When point is on the search
+;; phrase, press RET to create a file with the search phrase as
+;; the filename and title.
+;;
+;; Note that:
+;;
+;; 1. Xeft only looks for first-level files in ‘xeft-directory’. Files
+;; in sub-directories are not searched.
+;;
+;; 2. Xeft creates a new file by using the search phrase as the
+;;    filename and title. If you want otherwise, redefine
+;;    ‘xeft-create-note’ or ‘xeft-filename-fn’.
+;;
+;; 3. Xeft saves the current window configuration before switching to
+;;    Xeft buffer. When Xeft buffer is killed, Xeft restores the saved
+;;    window configuration.
 
 ;;; Code:
 
@@ -18,11 +43,11 @@
   "Xeft note interface."
   :group 'applications)
 
-(defcustom xeft-directory (expand-file-name "~/.deft")
+(defcustom xeft-directory "~/.deft"
   "Directory in where notes are stored. Must be a full path."
   :type 'directory)
 
-(defcustom xeft-database (expand-file-name "~/.deft/db")
+(defcustom xeft-database "~/.deft/db"
   "The path to the database."
   :type 'directory)
 
@@ -99,8 +124,7 @@
 (defvar xeft--need-refresh)
 (define-derived-mode xeft-mode fundamental-mode
   "Xeft" "Search for notes and display summaries."
-  (let ((inhibit-read-only t)
-        (buffer-undo-list t))
+  (let ((inhibit-read-only t))
     ;; Reindex all files.
     (dolist (file (xeft--file-list))
       (xeft-reindex-file file xeft-database))
@@ -304,7 +328,7 @@ search phrase the user typed."
          (car (last (split-string search-phrase))))
         title excerpt)
     (with-current-buffer (xeft--work-buffer)
-      (setq buffer-undo-list t)
+      (buffer-disable-undo)
       ;; We don’t need to cache file content, because we only insert
       ;; 15 results. And adding cache (with alist) is actually slower.
       (insert-file-contents file nil nil nil t)
@@ -404,6 +428,7 @@ non-nil, display all results."
               ;; ‘xeft--need-refresh’ in that hook.
               (inhibit-modification-hooks t)
               (orig-point (point)))
+          (buffer-disable-undo)
           ;; Actually insert the new content.
           (goto-char (point-min))
           (forward-line 2)
@@ -433,7 +458,8 @@ non-nil, display all results."
                 ;; buffer and re-inserted contents.
                 (goto-char orig-point)
                 ;; Re-apply highlight.
-                (xeft--highlight-file-at-point))
+                (xeft--highlight-file-at-point)
+                (buffer-enable-undo))
               ;; If interrupted, go back.
               (goto-char orig-point)
             ;; If finished, update this variable.
