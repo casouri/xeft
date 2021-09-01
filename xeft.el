@@ -318,6 +318,25 @@ If SELECT is non-nil, select the buffer after displaying it."
           (overlay-put ov 'xeft-highlight t)
           (overlay-put ov 'evaporate t))))))
 
+(defvar xeft--ecache nil
+  "Cache for finding excerpt for a file.")
+
+(defun xeft--ecache-buffer (file)
+  "Return a buffer that has the content of FILE.
+Doesn’t check for modification time, and not used."
+  (or (alist-get (sxhash file) xeft--ecache)
+      (progn
+        (let ((buf (get-buffer-create
+                    (format " *xeft-ecache %s*" file))))
+          (with-current-buffer buf
+            (setq buffer-undo-list t)
+            (insert-file-contents file nil nil nil t))
+          (push (cons (sxhash file) buf) xeft--ecache)
+          (when (> (length xeft--ecache) 30)
+            (kill-buffer (cdr (nth 30 xeft--ecache)))
+            (setcdr (nthcdr 29 xeft--ecache) nil))
+          buf))))
+
 (defun xeft--insert-file-excerpt (file search-phrase)
   "Insert an excerpt for FILE at point.
 This excerpt contains note title and content excerpt and is
@@ -329,8 +348,9 @@ search phrase the user typed."
         title excerpt)
     (with-current-buffer (xeft--work-buffer)
       (setq buffer-undo-list t)
-      ;; We don’t need to cache file content, because we only insert
-      ;; 15 results. And adding cache (with alist) is actually slower.
+      ;; The times saved by caching is not significant enough. So I
+      ;; choose to not cache, but kept the code just in case. See
+      ;; ‘xeft--ecache-buffer’.
       (insert-file-contents file nil nil nil t)
       (goto-char (point-min))
       (search-forward "#+TITLE: " (line-end-position) t)
@@ -403,13 +423,30 @@ Once refreshed the buffer, set this to nil.")
              (last lst))
      " ")))
 
+;; This makes the integrative search results much more stable and
+;; experience more fluid. And because we are not showing radically
+;; different results from one key-press to another, the latency goes
+;; down, I’m guessing because caching in CPU or RAM or OS or whatever.
+(defun xeft--ignore-short-phrase (phrase)
+  "If the last term in PHRASE is too short, remove it."
+  (let* ((lst (or (split-string phrase) '("")))
+         (last (car (last lst))))
+    (if (and (not (string-match-p (rx (or (category chinese)
+                                          (category japanese)
+                                          (category korean)))
+                                  last))
+             (< (length last) 3))
+        (string-join (cl-subseq lst 0 (1- (length lst))) " ")
+      (string-join lst " "))))
+
 (defun xeft-refresh (&optional full)
   "Search for notes and display their summaries.
 By default, only display the first 15 results. If FULL is
 non-nil, display all results."
   (interactive)
   (when (derived-mode-p 'xeft-mode)
-    (let ((search-phrase (xeft--get-search-phrase)))
+    (let ((search-phrase (xeft--ignore-short-phrase
+                          (xeft--get-search-phrase))))
       (let* ((phrase-empty (equal search-phrase ""))
              (file-list
               (if phrase-empty
@@ -417,6 +454,8 @@ non-nil, display all results."
                 (xeft-query-term
                  (xeft--tighten-search-phrase search-phrase)
                  xeft-database
+                 ;; 16 is just larger than 15, so we will know it when
+                 ;; there are more results.
                  0 (if full 2147483647 16))))
              (list-clipped nil))
         (when (and (null full) (> (length file-list) 15))
@@ -451,25 +490,26 @@ non-nil, display all results."
                                            xeft-mode-map t)))))
                    (buffer-string)))))
           (when (stringp new-content)
-            (setq buffer-undo-list t)
-            ;; Actually insert the new content.
-            (goto-char (point-min))
-            (forward-line 2)
-            (let ((start (point)))
-              (delete-region (point) (point-max))
-              (insert new-content)
-              ;; If we use (- start 2), emacs-rime cannot work.
-              (put-text-property (- start 1) (point) 'read-only t)
-              (xeft--highlight-search-phrase)
-              (set-buffer-modified-p nil)
-              ;; Re-apply highlight.
-              (xeft--highlight-file-at-point)
-              ;; If finished, update this variable.
-              (setq xeft--need-refresh nil)
-              ;; Save excursion wouldn’t work since we erased the
-              ;; buffer and re-inserted contents.
-              (goto-char orig-point)
-              (buffer-enable-undo))))))))
+            (while-no-input
+              (setq buffer-undo-list t)
+              ;; Actually insert the new content.
+              (goto-char (point-min))
+              (forward-line 2)
+              (let ((start (point)))
+                (delete-region (point) (point-max))
+                (insert new-content)
+                ;; If we use (- start 2), emacs-rime cannot work.
+                (put-text-property (- start 1) (point) 'read-only t)
+                (xeft--highlight-search-phrase)
+                (set-buffer-modified-p nil)
+                ;; Re-apply highlight.
+                (xeft--highlight-file-at-point)
+                ;; If finished, update this variable.
+                (setq xeft--need-refresh nil)
+                (buffer-enable-undo))))
+          ;; Save excursion wouldn’t work since we erased the
+          ;; buffer and re-inserted contents.
+          (goto-char orig-point))))))
 
 ;;; Highlight matched phrases
 
