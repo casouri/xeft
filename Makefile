@@ -6,7 +6,7 @@ LDFLAGS = -L$(PREFIX)/lib
 LDLIBS = -lxapian
 
 xeft-module.so: xeft-module.cc
-	$(CXX) -shared $(CXXFLAGS) $(LDFLAGS) $(LDLIBS) $< -o $@
+	$(CXX) $< -o $@ -shared $(CXXFLAGS) $(LDFLAGS) $(LDLIBS)
 
 clean:
 	rm -f *.so *.o
