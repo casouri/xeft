@@ -67,9 +67,13 @@
   '((t . (:inherit highlight :extend t)))
   "Face for highlighting in the preview buffer.")
 
+(defcustom xeft-default-extension ".txt"
+  "The default extension for new files created by xeft.."
+  :type 'string)
+
 (defcustom xeft-filename-fn
   (lambda (search-phrase)
-    (concat search-phrase ".txt"))
+    (concat search-phrase xeft-default-extension))
   "A function that takes the search phrase and returns a filename."
   :type 'function)
 
@@ -165,6 +169,8 @@
     (mkdir xeft-directory t))
   (when (not (file-name-absolute-p xeft-database))
     (user-error "XEFT-DATABASE must be an absolute path"))
+  (when (not (file-exists-p xeft-database))
+    (mkdir xeft-database t))
   (unless (require 'xeft-module nil t)
     (when (y-or-n-p
            "Xeft needs the dynamic module to work, compile it now? ")
@@ -185,15 +191,14 @@
   "Create a new note with the current search phrase as the title."
   (interactive)
   (let* ((search-phrase (xeft--get-search-phrase))
-         (file-path (expand-file-name
-                     (funcall xeft-filename-fn search-phrase)
-                     xeft-directory))
+         (file-name (funcall xeft-filename-fn search-phrase))
+         (file-path (expand-file-name file-name xeft-directory))
          (exists-p (file-exists-p file-path)))
     ;; If there is no match, create the file without confirmation,
     ;; otherwise prompt for confirmation. NOTE: this is not DRY, but
     ;; should be ok.
     (when (or (search-forward "Press RET to create a new note" nil t)
-              (y-or-n-p (format "Create file `%s'.txt? " search-phrase)))
+              (y-or-n-p (format "Create file `%s'? " file-name)))
       (find-file file-path)
       (unless exists-p
         (insert search-phrase "\n\n")
