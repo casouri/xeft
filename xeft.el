@@ -494,7 +494,7 @@ non-nil, display all results."
                           file search-phrase))
                      ;; NOTE: this string is referred in
                      ;; ‘xeft-create-note’.
-                     "Press RET to create a new note")
+                     (insert "Press RET to create a new note"))
                    ;; Insert clipped notice.
                    (when list-clipped
                      (insert
