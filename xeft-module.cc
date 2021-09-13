@@ -64,6 +64,7 @@ class xeft_cannot_open_file: public exception {};
 static bool
 reindex_file
 (string path, string dbpath, string lang = "en", bool force = false)
+  EMACS_NOEXCEPT
 {
   // Check for mtime.
   struct stat st;
@@ -146,7 +147,8 @@ reindex_file
 // https://xapian.org/docs/apidoc/html/classXapian_1_1Stem.html
 static vector<string>
 query_term
-(string term, string dbpath, int offset, int page_size, string lang = "en")
+(string term, string dbpath, int offset, int page_size,
+ string lang = "en") EMACS_NOEXCEPT
 {
   // See reindex_file for the reason for caching the database object.
   if (dbpath != cached_dbpath)
