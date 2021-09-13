@@ -320,14 +320,14 @@ NILP (emacs_env *env, emacs_value val)
   return !env->is_not_nil (env, val);
 }
 
-typedef emacs_value (*emacs_subr) (emacs_env *env,
-                                   ptrdiff_t nargs, emacs_value *args,
-                                   void *data);
-
 static void
 define_function
 (emacs_env *env, const char *name, ptrdiff_t min_arity,
- ptrdiff_t max_arity, emacs_subr function EMACS_NOEXCEPT,
+ ptrdiff_t max_arity,
+ emacs_value (*function) (emacs_env *env,
+                          ptrdiff_t nargs,
+                          emacs_value* args,
+                          void *data) EMACS_NOEXCEPT,
  const char *documentation)
 {
   emacs_value fn = env->make_function
