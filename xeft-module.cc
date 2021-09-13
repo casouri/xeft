@@ -64,7 +64,6 @@ class xeft_cannot_open_file: public exception {};
 static bool
 reindex_file
 (string path, string dbpath, string lang = "en", bool force = false)
-  EMACS_NOEXCEPT
 {
   // Check for mtime.
   struct stat st;
@@ -148,7 +147,7 @@ reindex_file
 static vector<string>
 query_term
 (string term, string dbpath, int offset, int page_size,
- string lang = "en") EMACS_NOEXCEPT
+ string lang = "en")
 {
   // See reindex_file for the reason for caching the database object.
   if (dbpath != cached_dbpath)
@@ -323,7 +322,7 @@ NILP (emacs_env *env, emacs_value val)
 
 typedef emacs_value (*emacs_subr) (emacs_env *env,
                                    ptrdiff_t nargs, emacs_value *args,
-                                   void *data);
+                                   void *data) EMACS_NOEXCEPT;
 
 static void
 define_function
