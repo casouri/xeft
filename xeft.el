@@ -78,7 +78,11 @@
   :type 'function)
 
 (defcustom xeft-ignore-extension '("iimg")
-  "Files with extensions in this list are ignored."
+  "Files with extensions in this list are ignored.
+
+To remove the files that you want to ignore but are already
+indexed in the database, simply delete the database and start
+xeft again."
   :type '(list string))
 
 ;;; Compile
