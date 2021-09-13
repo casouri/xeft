@@ -73,6 +73,10 @@
   "A function that takes the search phrase and returns a filename."
   :type 'function)
 
+(defcustom xeft-ignore-extension '("iimg")
+  "Files with extensions in this list are ignored."
+  :type '(list string))
+
 ;;; Compile
 
 (defun xeft--compile-module ()
@@ -125,9 +129,6 @@
 (define-derived-mode xeft-mode fundamental-mode
   "Xeft" "Search for notes and display summaries."
   (let ((inhibit-read-only t))
-    ;; Reindex all files.
-    (dolist (file (xeft--file-list))
-      (xeft-reindex-file file xeft-database))
     (visual-line-mode)
     (setq default-directory xeft-directory
           xeft--last-window-config (current-window-configuration))
@@ -172,7 +173,13 @@
   (setq xeft--last-window-config (current-window-configuration))
   (switch-to-buffer (xeft--buffer))
   (when (not (derived-mode-p 'xeft-mode))
-    (xeft-mode)))
+    (xeft-mode))
+  ;; Reindex all files. We reindex every time M-x xeft is called.
+  ;; Because sometimes I use other functions to move between files,
+  ;; edit them, and come back to Xeft buffer to search. By that time
+  ;; some file are changed without Xeft noticing.
+  (dolist (file (xeft--file-list))
+    (xeft-reindex-file file xeft-database)))
 
 (defun xeft-create-note ()
   "Create a new note with the current search phrase as the title."
@@ -246,6 +253,7 @@
   "View file at point."
   (interactive)
   (find-file (button-get (button-at (point)) 'path))
+  (run-hooks 'xeft-find-file-hook)
   (add-hook 'after-save-hook #'xeft--after-save 0 t))
 
 (defun xeft--preview-file (file &optional select)
@@ -400,7 +408,9 @@ search phrase the user typed."
    (lambda (file)
      (and (file-regular-p file)
           (not (string-prefix-p
-                "." (file-name-base file)))))
+                "." (file-name-base file)))
+          (not (member (file-name-extension file)
+                       xeft-ignore-extension))))
    (directory-files xeft-directory t nil t)))
 
 (defvar-local xeft--need-refresh t
@@ -502,14 +512,14 @@ non-nil, display all results."
                 (put-text-property (- start 1) (point) 'read-only t)
                 (xeft--highlight-search-phrase)
                 (set-buffer-modified-p nil)
-                ;; Re-apply highlight.
-                (xeft--highlight-file-at-point)
                 ;; If finished, update this variable.
                 (setq xeft--need-refresh nil)
                 (buffer-enable-undo))))
           ;; Save excursion wouldn’t work since we erased the
           ;; buffer and re-inserted contents.
-          (goto-char orig-point))))))
+          (goto-char orig-point)
+          ;; Re-apply highlight.
+          (xeft--highlight-file-at-point))))))
 
 ;;; Highlight matched phrases
 
