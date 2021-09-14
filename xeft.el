@@ -21,7 +21,8 @@
 ;; Note that:
 ;;
 ;; 1. Xeft only looks for first-level files in ‘xeft-directory’. Files
-;; in sub-directories are not searched.
+;;    in sub-directories are not searched unless ‘xeft-recursive’ is
+;;    non-nil.
 ;;
 ;; 2. Xeft creates a new file by using the search phrase as the
 ;;    filename and title. If you want otherwise, redefine
