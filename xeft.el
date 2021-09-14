@@ -67,13 +67,13 @@
   '((t . (:inherit highlight :extend t)))
   "Face for highlighting in the preview buffer.")
 
-(defcustom xeft-default-extension ".txt"
-  "The default extension for new files created by xeft.."
+(defcustom xeft-default-extension "txt"
+  "The default extension for new files created by xeft."
   :type 'string)
 
 (defcustom xeft-filename-fn
   (lambda (search-phrase)
-    (concat search-phrase xeft-default-extension))
+    (concat search-phrase "." xeft-default-extension))
   "A function that takes the search phrase and returns a filename."
   :type 'function)
 
@@ -84,6 +84,11 @@ To remove the files that you want to ignore but are already
 indexed in the database, simply delete the database and start
 xeft again."
   :type '(list string))
+
+(defcustom xeft-recursive nil
+  "If non-nil, xeft searches for file recursively.
+Xeft doesn’t follow symlinks and ignores inaccessible directories."
+  :type 'boolean)
 
 ;;; Compile
 
@@ -420,7 +425,9 @@ search phrase the user typed."
                 "." (file-name-base file)))
           (not (member (file-name-extension file)
                        xeft-ignore-extension))))
-   (directory-files xeft-directory t nil t)))
+   (if xeft-recursive
+       (directory-files-recursively xeft-directory "" nil t)
+     (directory-files xeft-directory t nil t))))
 
 (defvar-local xeft--need-refresh t
   "If change is made to the buffer, set this to t.
