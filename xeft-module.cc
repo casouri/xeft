@@ -291,12 +291,12 @@ copy_string (emacs_env *env, emacs_value value)
   if (copy_string_contents (env, value, &char_buffer, &size))
     {
       string str = (string) char_buffer;
-      free (*char_buffer);
+      free (char_buffer);
       return str;
     }
   else
     {
-      free (*char_buffer);
+      free (char_buffer);
       signal (env, "xeft-error",
               "Error turning lisp string to C++ string");
       return "";
