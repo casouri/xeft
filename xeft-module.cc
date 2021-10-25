@@ -33,7 +33,7 @@ int plugin_is_GPL_compatible;
 #define CHECK_EXIT(env) \
   if (env->non_local_exit_check (env) \
       != emacs_funcall_exit_return)   \
-    return NULL;
+    { return NULL; }
 
 /* A few notes: The database we use, WritableDatabase, will not throw
    DatabaseModifiedError, so we don’t need to handle that. For query,
@@ -210,8 +210,7 @@ query_term
 
 /*** Module definition */
 
-/**** Copied from Philipp’s documents */
-
+/* Copied from Philipp’s documents */
 static bool
 copy_string_contents
 (emacs_env *env, emacs_value value, char **buffer, size_t *size)
@@ -241,6 +240,7 @@ copy_string_contents
   return true;
 }
 
+/* Copied from Philipp’s documents */
 static void
 provide (emacs_env *env, const char *feature)
 {
@@ -250,8 +250,6 @@ provide (emacs_env *env, const char *feature)
 
   env->funcall (env, Qprovide, 1, args);
 }
-
-/**** Convenient functions */
 
 static emacs_value
 intern (emacs_env *env, const char *name)
@@ -386,10 +384,10 @@ Fxeft_reindex_file
   string path = copy_string (env, lisp_path);
   string dbpath = copy_string (env, lisp_dbpath);
   bool force = !NILP (env, lisp_force);
-  CHECK_EXIT (env)
+  CHECK_EXIT (env);
   string lang = NILP (env, lisp_lang) ?
     "en" : copy_string (env, lisp_lang);
-  CHECK_EXIT (env)
+  CHECK_EXIT (env);
   
   // Do the work.
   bool indexed;
@@ -467,7 +465,7 @@ Fxeft_query_term
   string dbpath = copy_string (env, lisp_dbpath);
   int offset = env->extract_integer (env, lisp_offset);
   int page_size = env->extract_integer (env, lisp_page_size);
-  CHECK_EXIT (env)
+  CHECK_EXIT (env);
 
   vector<string> result;
   try
@@ -492,7 +490,7 @@ Fxeft_query_term
                    env->make_string
                    (env, it->c_str(), strlen(it->c_str())),
                    ret);
-    CHECK_EXIT (env)
+    CHECK_EXIT (env);
   }
   return funcall (env, "reverse", 1, ret);
 }
