@@ -96,13 +96,15 @@ Xeft doesn’t follow symlinks and ignores inaccessible directories."
 (defun xeft--compile-module ()
   "Compile the dynamic module. Return non-nil if success."
   ;; Just following vterm.el here.
+  (when (not (executable-find "make"))
+    (user-error "Couldn’t compile xeft: cannot find make"))
   (let* ((source-dir
           (shell-quote-argument
            (file-name-directory
             (locate-library "xeft.el" t))))
          (command (format "cd %s; make PREFIX=%s"
                           source-dir
-                          (read-string "PREFIX: " "/usr/local")))
+                          (read-string "PREFIX (empty by default): ")))
          (buffer (get-buffer-create "*xeft compile*")))
     (if (zerop (let ((inhibit-read-only t))
                  (call-process "sh" nil buffer t "-c" command)))
@@ -151,7 +153,11 @@ Xeft doesn’t follow symlinks and ignores inaccessible directories."
     (add-hook 'post-command-hook
               (lambda (&rest _)
                 (when xeft--need-refresh
-                  (xeft-refresh)))
+                  (let ((inhibit-modification-hooks t))
+                    ;; We don’t want ‘after-change-functions’ to run
+                    ;; when we refresh the buffer, because we set
+                    ;; ‘xeft--need-refresh’ in that hook.
+                    (xeft-refresh))))
               0 t)
     (add-hook 'after-change-functions
               (lambda (&rest _) (setq xeft--need-refresh t)) 0 t)
@@ -194,8 +200,9 @@ Xeft doesn’t follow symlinks and ignores inaccessible directories."
   ;; Because sometimes I use other functions to move between files,
   ;; edit them, and come back to Xeft buffer to search. By that time
   ;; some file are changed without Xeft noticing.
-  (dolist (file (xeft--file-list))
-    (xeft-reindex-file file xeft-database)))
+  (xeft-full-reindex)
+  ;; Also regenerate newest file cache, for the same reason as above.
+  (xeft--front-page-cache-refresh))
 
 (defun xeft-create-note ()
   "Create a new note with the current search phrase as the title."
@@ -212,7 +219,9 @@ Xeft doesn’t follow symlinks and ignores inaccessible directories."
       (find-file file-path)
       (unless exists-p
         (insert search-phrase "\n\n")
-        (save-buffer))
+        (save-buffer)
+        ;; This should cover most cases.
+        (xeft--front-page-cache-refresh))
       (run-hooks 'xeft-find-file-hook))))
 
 (defvar-local xeft--select-overlay nil
@@ -467,6 +476,15 @@ Once refreshed the buffer, set this to nil.")
         (string-join (cl-subseq lst 0 (1- (length lst))) " ")
       (string-join lst " "))))
 
+;; See comment in ‘xeft-refresh’.
+(defvar xeft--front-page-cache nil
+  "Stores the newest 15 or so files.")
+
+(defun xeft--front-page-cache-refresh ()
+  "Refresh ‘xeft--front-page-cache’ and return it."
+  (setq xeft--front-page-cache
+        (cl-sort (xeft--file-list) #'file-newer-than-file-p)))
+
 (defun xeft-refresh (&optional full)
   "Search for notes and display their summaries.
 By default, only display the first 15 results. If FULL is
@@ -476,26 +494,32 @@ non-nil, display all results."
     (let ((search-phrase (xeft--ignore-short-phrase
                           (xeft--get-search-phrase))))
       (let* ((phrase-empty (equal search-phrase ""))
-             (file-list
+             (file-list nil)
+             (list-clipped nil))
+        ;; 1. Get a list of files to show.
+        (setq file-list
+              ;; If the search phrase is empty (or too short and thus
+              ;; ignored), we show the newest files.
               (if phrase-empty
-                  (cl-sort (xeft--file-list) #'file-newer-than-file-p)
+                  (or xeft--front-page-cache
+                      ;; Why cache? Turns out sorting this list by
+                      ;; modification date is slow enough to be
+                      ;; perceivable.
+                      (setq xeft--front-page-cache
+                            (xeft--front-page-cache-refresh)))
                 (xeft-query-term
                  (xeft--tighten-search-phrase search-phrase)
                  xeft-database
                  ;; 16 is just larger than 15, so we will know it when
                  ;; there are more results.
                  0 (if full 2147483647 16))))
-             (list-clipped nil))
         (when (and (null full) (> (length file-list) 15))
           (setq file-list (cl-subseq file-list 0 15)
                 list-clipped t))
-        ;; We do a double-buffering: first insert in a temp buffer,
-        ;; then insert the whole thing into this buffer.
+        ;; 2. Display these files with excerpt. We do a
+        ;; double-buffering: first insert in a temp buffer, then
+        ;; insert the whole thing into this buffer.
         (let ((inhibit-read-only t)
-              ;; We don’t want ‘after-change-functions’ to run when we
-              ;; refresh the buffer, because we set
-              ;; ‘xeft--need-refresh’ in that hook.
-              (inhibit-modification-hooks t)
               (orig-point (point))
               (new-content
                (while-no-input
@@ -518,10 +542,10 @@ non-nil, display all results."
                         (where-is-internal #'xeft-refresh-full
                                            xeft-mode-map t)))))
                    (buffer-string)))))
+          ;; 2.2 Actually insert the content.
           (when (stringp new-content)
             (while-no-input
               (setq buffer-undo-list t)
-              ;; Actually insert the new content.
               (goto-char (point-min))
               (forward-line 2)
               (let ((start (point)))
