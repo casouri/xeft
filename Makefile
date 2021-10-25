@@ -1,5 +1,6 @@
 .POSIX:
-PREFIX=/usr/local # Even if this is unnecessary, it doesn’t hurt.
+# Even if this is unnecessary, it doesn’t hurt.
+PREFIX=/usr/local
 CXX=g++
 CXXFLAGS=-fPIC -I$(PREFIX)/include
 LDFLAGS=-L$(PREFIX)/lib
