@@ -330,16 +330,17 @@ If SELECT is non-nil, select the buffer after displaying it."
                        (split-string (xeft--get-search-phrase))))
         (inhibit-read-only t))
     (dolist (keyword keyword-list)
-      (goto-char (point-min))
-      (forward-line 2)
-      ;; We use overlay because overlay allows face composition.
-      ;; So we can have bold + underline.
-      (while (search-forward keyword nil t)
-        (let ((ov (make-overlay (match-beginning 0)
-                                (match-end 0))))
-          (overlay-put ov 'face 'xeft-inline-highlight)
-          (overlay-put ov 'xeft-highlight t)
-          (overlay-put ov 'evaporate t))))))
+      (when (> (length keyword) 1)
+        (goto-char (point-min))
+        (forward-line 2)
+        ;; We use overlay because overlay allows face composition.
+        ;; So we can have bold + underline.
+        (while (search-forward keyword nil t)
+          (let ((ov (make-overlay (match-beginning 0)
+                                  (match-end 0))))
+            (overlay-put ov 'face 'xeft-inline-highlight)
+            (overlay-put ov 'xeft-highlight t)
+            (overlay-put ov 'evaporate t)))))))
 
 (defvar xeft--ecache nil
   "Cache for finding excerpt for a file.")
@@ -546,12 +547,13 @@ non-nil, display all results."
   (save-excursion
     ;; Add highlight overlays.
     (dolist (keyword keyword-list)
-      (goto-char (point-min))
-      (while (search-forward keyword nil t)
-        (let ((ov (make-overlay (match-beginning 0)
-                                (match-end 0))))
-          (overlay-put ov 'face 'xeft-preview-highlight)
-          (overlay-put ov 'xeft-highlight t))))
+      (when (> (length keyword) 1)
+        (goto-char (point-min))
+        (while (search-forward keyword nil t)
+          (let ((ov (make-overlay (match-beginning 0)
+                                  (match-end 0))))
+            (overlay-put ov 'face 'xeft-preview-highlight)
+            (overlay-put ov 'xeft-highlight t)))))
     ;; Add cleanup hook.
     (add-hook 'window-selection-change-functions
               #'xeft--cleanup-highlight
