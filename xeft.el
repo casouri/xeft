@@ -35,8 +35,10 @@
 ;;; Code:
 
 (require 'cl-lib)
-(declare-function xeft-reindex-file nil (path dbpath lang force))
-(declare-function xeft-query-term nil (term dbpath offset page-size lang))
+(declare-function xeft-reindex-file nil
+                  (path dbpath &optional lang force))
+(declare-function xeft-query-term nil
+                  (term dbpath offset page-size &optional lang))
 
 ;;; Customize
 
