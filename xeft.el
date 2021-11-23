@@ -553,8 +553,7 @@ non-nil, display all results."
               (let ((start (point)))
                 (delete-region (point) (point-max))
                 (insert new-content)
-                ;; If we use (- start 2), emacs-rime cannot work.
-                (put-text-property (- start 1) (point) 'read-only t)
+                (put-text-property (- start 2) (point) 'read-only t)
                 (xeft--highlight-search-phrase)
                 (set-buffer-modified-p nil)
                 ;; If finished, update this variable.
