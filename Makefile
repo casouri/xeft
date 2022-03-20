@@ -6,7 +6,7 @@ CXXFLAGS=-fPIC -I$(PREFIX)/include
 LDFLAGS=-L$(PREFIX)/lib
 LDLIBS=-lxapian
 
-xeft-module.so: xeft-module.cc
+xapian-lite.so: module/xapian-lite.cc
 	$(CXX) $< -o $@ -shared $(CXXFLAGS) $(LDFLAGS) $(LDLIBS)
 
 clean:

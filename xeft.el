@@ -35,9 +35,9 @@
 ;;; Code:
 
 (require 'cl-lib)
-(declare-function xeft-reindex-file nil
+(declare-function xapian-lite-reindex-file nil
                   (path dbpath &optional lang force))
-(declare-function xeft-query-term nil
+(declare-function xapian-lite-query-term nil
                   (term dbpath offset page-size &optional lang))
 
 ;;; Customize
@@ -131,7 +131,7 @@ Xeft doesn’t follow symlinks and ignores inaccessible directories."
 
 (defun xeft--after-save ()
   "Reindex the file."
-  (xeft-reindex-file (buffer-file-name) xeft-database))
+  (xapian-lite-reindex-file (buffer-file-name) xeft-database))
 
 (defvar xeft-mode-map
   (let ((map (make-sparse-keymap)))
@@ -189,11 +189,11 @@ Xeft doesn’t follow symlinks and ignores inaccessible directories."
     (user-error "XEFT-DATABASE must be an absolute path"))
   (when (not (file-exists-p xeft-database))
     (mkdir xeft-database t))
-  (unless (require 'xeft-module nil t)
+  (unless (require 'xapian-lite nil t)
     (when (y-or-n-p
            "Xeft needs the dynamic module to work, compile it now? ")
       (when (xeft--compile-module)
-        (require 'xeft-module))))
+        (require 'xapian-lite))))
   (setq xeft--last-window-config (current-window-configuration))
   (switch-to-buffer (xeft--buffer))
   (when (not (derived-mode-p 'xeft-mode))
@@ -261,7 +261,7 @@ Xeft doesn’t follow symlinks and ignores inaccessible directories."
   "Do a full reindex of all files."
   (interactive)
   (dolist (file (xeft--file-list))
-    (xeft-reindex-file file xeft-database)))
+    (xapian-lite-reindex-file file xeft-database)))
 
 ;;; Draw
 
@@ -509,7 +509,7 @@ non-nil, display all results."
                       ;; perceivable.
                       (setq xeft--front-page-cache
                             (xeft--front-page-cache-refresh)))
-                (xeft-query-term
+                (xapian-lite-query-term
                  (xeft--tighten-search-phrase search-phrase)
                  xeft-database
                  ;; 16 is just larger than 15, so we will know it when

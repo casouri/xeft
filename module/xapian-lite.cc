@@ -19,6 +19,7 @@
 #include <xapian.h>
 
 #include "emacs-module.h"
+#include "emacs-module-prelude.h"
 
 using namespace std;
 
@@ -52,7 +53,7 @@ static const Xapian::valueno DOC_FILEPATH = 1;
 static Xapian::WritableDatabase database;
 static string cached_dbpath = "";
 
-class xeft_cannot_open_file: public exception {};
+class xapian_lite_cannot_open_file: public exception {};
 
 // Reindex the file at PATH, using database at DBPATH. Throws
 // cannot_open_file. Both path must be absolute. Normally only reindex
@@ -76,7 +77,7 @@ reindex_file
     }
   else
     {
-      throw xeft_cannot_open_file();
+      throw xapian_lite_cannot_open_file();
     }
 
   // Even though the document says that database object only carries a
@@ -210,85 +211,12 @@ query_term
 
 /*** Module definition */
 
-/* Copied from Philipp’s documents */
-static bool
-copy_string_contents
-(emacs_env *env, emacs_value value, char **buffer, size_t *size)
-{
-  ptrdiff_t buffer_size;
-  if (!env->copy_string_contents (env, value, NULL, &buffer_size))
-    return false;
-  assert (env->non_local_exit_check (env) == emacs_funcall_exit_return);
-  assert (buffer_size > 0);
-  *buffer = (char*) malloc ((size_t) buffer_size);
-  if (*buffer == NULL)
-    {
-      env->non_local_exit_signal (env, env->intern (env, "memory-full"),
-                                  env->intern (env, "nil"));
-      return false;
-    }
-  ptrdiff_t old_buffer_size = buffer_size;
-  if (!env->copy_string_contents (env, value, *buffer, &buffer_size))
-    {
-      free (*buffer);
-      *buffer = NULL;
-      return false;
-    }
-  assert (env->non_local_exit_check (env) == emacs_funcall_exit_return);
-  assert (buffer_size == old_buffer_size);
-  *size = (size_t) (buffer_size - 1);
-  return true;
-}
-
-/* Copied from Philipp’s documents */
-static void
-provide (emacs_env *env, const char *feature)
-{
-  emacs_value Qfeat = env->intern (env, feature);
-  emacs_value Qprovide = env->intern (env, "provide");
-  emacs_value args[] = { Qfeat };
-
-  env->funcall (env, Qprovide, 1, args);
-}
-
-static emacs_value
-intern (emacs_env *env, const char *name)
-{
-  return env->intern (env, name);
-}
-
-static emacs_value
-funcall (emacs_env *env, const char* fn, ptrdiff_t nargs, ...)
-{
-  va_list argv;
-  va_start (argv, nargs);
-  emacs_value *args = (emacs_value *) malloc(nargs * sizeof(emacs_value));
-  for (int idx = 0; idx < nargs; idx++)
-    {
-      args[idx] = va_arg (argv, emacs_value);
-    }
-  va_end (argv);
-  emacs_value val = env->funcall (env, intern (env, fn), nargs, args);
-  free (args);
-  return val;
-}
-
-static void
-signal (emacs_env *env, const char *name, const char *message)
-{
-  env->non_local_exit_signal
-    (env, env->intern (env, name),
-     funcall (env, "cons", 2,
-              env->make_string (env, message, strlen (message)),
-              intern (env, "nil")));
-}
-
 static string
 copy_string (emacs_env *env, emacs_value value)
 {
   char* char_buffer;
   size_t size;
-  if (copy_string_contents (env, value, &char_buffer, &size))
+  if (emp_copy_string_contents (env, value, &char_buffer, &size))
     {
       string str = (string) char_buffer;
       free (char_buffer);
@@ -297,21 +225,10 @@ copy_string (emacs_env *env, emacs_value value)
   else
     {
       free (char_buffer);
-      signal (env, "xeft-error",
+      emp_signal_message1 (env, "xapian-lite-error",
               "Error turning lisp string to C++ string");
       return "";
     }
-}
-
-static void
-define_error
-(emacs_env *env, const char *name,
- const char *description, const char *parent)
-{
-  funcall (env, "define-error", 3,
-           intern (env, name),
-           env->make_string (env, description, strlen (description)),
-           intern (env, parent));
 }
 
 static bool
@@ -320,24 +237,7 @@ NILP (emacs_env *env, emacs_value val)
   return !env->is_not_nil (env, val);
 }
 
-static void
-define_function
-(emacs_env *env, const char *name, ptrdiff_t min_arity,
- ptrdiff_t max_arity,
- emacs_value (*function) (emacs_env *env,
-                          ptrdiff_t nargs,
-                          emacs_value* args,
-                          void *data) EMACS_NOEXCEPT,
- const char *documentation)
-{
-  emacs_value fn = env->make_function
-    (env, min_arity, max_arity, function, documentation, NULL);
-  funcall (env, "fset", 2, intern (env, name), fn);
-}
-
-/**** Exposed functions */
-
-static const char* xeft_reindex_file_doc =
+static const char* xapian_lite_reindex_file_doc =
   "Refindex file at PATH with database at DBPATH\n"
   "Both paths has to be absolute.  Normally, this function only\n"
   "reindex a file if it has been modified since last indexed,\n"
@@ -353,7 +253,7 @@ static const char* xeft_reindex_file_doc =
   "(fn PATH DBPATH &optional LANG FORCE)";
 
 static emacs_value
-Fxeft_reindex_file
+Fxapian_lite_reindex_file
 (emacs_env *env, ptrdiff_t nargs, emacs_value args[], void *data)
   EMACS_NOEXCEPT
 {
@@ -362,24 +262,27 @@ Fxeft_reindex_file
   emacs_value lisp_path = args[0];
   emacs_value lisp_dbpath = args[1];
 
-  if (NILP (env, funcall (env, "file-name-absolute-p", 1, lisp_path)))
+  if (NILP (env, emp_funcall (env, "file-name-absolute-p", 1, lisp_path)))
     {
-      signal (env, "xeft-file-error", "PATH is not a absolute path");
+      emp_signal_message1 (env, "xapian-lite-file-error",
+                           "PATH is not a absolute path");
       return NULL;
     }
-  if (NILP (env, funcall (env, "file-name-absolute-p", 1, lisp_dbpath)))
+  if (NILP (env,
+            emp_funcall (env, "file-name-absolute-p", 1, lisp_dbpath)))
     {
-      signal (env, "xeft-file-error", "DBPATH is not a absolute path");
+      emp_signal_message1 (env, "xapian-lite-file-error",
+                           "DBPATH is not a absolute path");
       return NULL;
     }
 
   // Expand "~" in the filename.
   emacs_value lisp_args[] = {lisp_path};
-  lisp_path = funcall (env, "expand-file-name", 1, lisp_path);
-  lisp_dbpath = funcall (env, "expand-file-name", 1, lisp_dbpath);
+  lisp_path = emp_funcall (env, "expand-file-name", 1, lisp_path);
+  lisp_dbpath = emp_funcall (env, "expand-file-name", 1, lisp_dbpath);
 
-  emacs_value lisp_lang = nargs < 3 ? intern (env, "nil") : args[2];
-  emacs_value lisp_force = nargs < 4 ? intern (env, "nil") : args[3];
+  emacs_value lisp_lang = nargs < 3 ? emp_intern (env, "nil") : args[2];
+  emacs_value lisp_force = nargs < 4 ? emp_intern (env, "nil") : args[3];
   
   string path = copy_string (env, lisp_path);
   string dbpath = copy_string (env, lisp_dbpath);
@@ -394,26 +297,29 @@ Fxeft_reindex_file
   try
     {
       indexed = reindex_file (path, dbpath, lang, force);
-      return indexed ? intern (env, "t") : intern (env, "nil");
+      return indexed ? emp_intern (env, "t") : emp_intern (env, "nil");
     }
-  catch (xeft_cannot_open_file &e)
+  catch (xapian_lite_cannot_open_file &e)
     {
-      signal (env, "xeft-file-error", "Cannot open the file");
+      emp_signal_message1 (env, "xapian-lite-file-error",
+                           "Cannot open the file");
       return NULL;
     }
   catch (Xapian::Error &e)
     {
-      signal (env, "xeft-xapian-error", e.get_description().c_str());
+      emp_signal_message1 (env, "xapian-lite-lib-error",
+                           e.get_description().c_str());
       return NULL;
     }
   catch (exception &e)
     {
-      signal (env, "xeft-error", "Something went wrong");
+      emp_signal_message1 (env, "xapian-lite-error",
+                           "Something went wrong");
       return NULL;
     }
 }
 
-static const char *xeft_query_term_doc =
+static const char *xapian_lite_query_term_doc =
   "Query for TERM in database at DBPATH.\n"
   "Paging is supported by OFFSET and PAGE-SIZE. OFFSET specifies page\n"
   "start, and PAGE-SIZE the size. For example, if a page is 10 entries,\n"
@@ -443,7 +349,7 @@ static const char *xeft_query_term_doc =
   "(fn TERM DBPATH OFFSET PAGE-SIZE &optional LANG)";
 
 static emacs_value
-Fxeft_query_term
+Fxapian_lite_query_term
 (emacs_env *env, ptrdiff_t nargs, emacs_value args[], void *data)
   EMACS_NOEXCEPT
 {
@@ -453,13 +359,15 @@ Fxeft_query_term
   emacs_value lisp_offset = args[2];
   emacs_value lisp_page_size = args[3];
 
-  if (NILP (env, funcall (env, "file-name-absolute-p", 1, lisp_dbpath)))
+  if (NILP (env,
+            emp_funcall (env, "file-name-absolute-p", 1, lisp_dbpath)))
     {
-      signal (env, "xeft-file-error", "DBPATH is not a absolute path");
+      emp_signal_message1 (env, "xapian-lite-file-error",
+                           "DBPATH is not a absolute path");
       return NULL;
     }
 
-  lisp_dbpath = funcall (env, "expand-file-name", 1, lisp_dbpath);
+  lisp_dbpath = emp_funcall (env, "expand-file-name", 1, lisp_dbpath);
 
   string term = copy_string (env, lisp_term);
   string dbpath = copy_string (env, lisp_dbpath);
@@ -474,25 +382,27 @@ Fxeft_query_term
     }
   catch (Xapian::Error &e)
     {
-      signal (env, "xeft-xapian-error", e.get_description().c_str());
+      emp_signal_message1 (env, "xapian-lite-lib-error",
+                           e.get_description().c_str());
       return NULL;
     }
   catch (exception &e)
     {
-      signal (env, "xeft-error", "Something went wrong");
+      emp_signal_message1 (env, "xapian-lite-error",
+                           "Something went wrong");
       return NULL;
     }
 
   vector<string>::iterator it;
-  emacs_value ret = intern (env, "nil");
+  emacs_value ret = emp_intern (env, "nil");
   for (it = result.begin(); it != result.end(); it++) {
-    ret = funcall (env, "cons", 2,
+    ret = emp_funcall (env, "cons", 2,
                    env->make_string
                    (env, it->c_str(), strlen(it->c_str())),
                    ret);
     CHECK_EXIT (env);
   }
-  return funcall (env, "reverse", 1, ret);
+  return emp_funcall (env, "reverse", 1, ret);
 }
 
 int
@@ -500,16 +410,21 @@ emacs_module_init (struct emacs_runtime *ert) EMACS_NOEXCEPT
 {
   emacs_env *env = ert->get_environment (ert);
 
-  define_error (env, "xeft-error", "Generic xeft error", "error");
-  define_error (env, "xeft-xapian-error", "Xapian error", "xeft-error");
-  define_error (env, "xeft-file-error", "Cannot open file", "xeft-error");
+  emp_define_error (env, "xapian-lite-error",
+                "Generic xapian-lite error", "error");
+  emp_define_error (env, "xapian-lite-lib-error",
+                "Xapian library error", "xapian-lite-error");
+  emp_define_error (env, "xapian-lite-file-error",
+                "Cannot open file", "xapian-lite-error");
 
-  define_function(env, "xeft-reindex-file", 2, 3,
-                  &Fxeft_reindex_file, xeft_reindex_file_doc);
-  define_function(env, "xeft-query-term", 4, 4,
-                  &Fxeft_query_term, xeft_query_term_doc);
+  emp_define_function(env, "xapian-lite-reindex-file", 2, 3,
+                  &Fxapian_lite_reindex_file,
+                  xapian_lite_reindex_file_doc);
+  emp_define_function(env, "xapian-lite-query-term", 4, 4,
+                  &Fxapian_lite_query_term,
+                  xapian_lite_query_term_doc);
 
-  provide (env, "xeft-module");
+  emp_provide (env, "xapian-lite");
 
   /* Return 0 to indicate module loaded successfully.  */
   return 0;
