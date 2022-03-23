@@ -70,6 +70,14 @@
   '((t . (:inherit highlight :extend t)))
   "Face for highlighting in the preview buffer.")
 
+(defface xeft-excerpt-title
+  '((t . (:inherit (bold underline))))
+  "Face for the excerpt title.")
+
+(defface xeft-excerpt-body
+  '((t . (:inherit default)))
+  "Face for the excerpt body.")
+
 (defcustom xeft-default-extension "txt"
   "The default extension for new files created by xeft."
   :type 'string)
@@ -412,9 +420,9 @@ search phrase the user typed."
                               (point-max))))))))
     ;; Now we insert the excerpt
     (let ((start (point)))
-      (insert (propertize title 'face '(:weight bold))
+      (insert (propertize title 'face 'xeft-excerpt-title)
               "\n"
-              (propertize excerpt 'face '(:weight light))
+              (propertize excerpt 'face 'xeft-excerpt-body)
               "\n\n")
       ;; If we use overlay (with `make-button'), the button's face
       ;; will override the bold and light face we specified above.
