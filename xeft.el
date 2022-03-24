@@ -31,6 +31,27 @@
 ;; 3. Xeft saves the current window configuration before switching to
 ;;    Xeft buffer. When Xeft buffer is killed, Xeft restores the saved
 ;;    window configuration.
+;;
+;; On search queries:
+;;
+;; Since Xeft uses Xapian, it supports the query syntax Xapian
+;; supports:
+;;
+;; AND, NOT, OR, XOR and parenthesizes
+;; +word1 -word2      which matches documents that contains WORD1 but not
+;;                    WORD2.
+;; word1 NEAR word2   which matches documents in where word1 is near word2.
+;; word1 ADJ word2    which matches documents in where word1 is near word2
+;;                    and word1 comes before word2
+;; "word1 word2"      which matches exactly “word1 word2”
+;;
+;; Xeft deviates from Xapian in one aspect: consecutive phrases have
+;; implied “AND” between them. So "word1 word2 word3" is actually seen
+;; as "word1 AND word2 AND word3". See ‘xeft--tighten-search-phrase’
+;; for how exactly is it done.
+;;
+;; See https://xapian.org/docs/queryparser.html for Xapian’s official
+;; documentation on query syntax.
 
 ;;; Code:
 
@@ -345,7 +366,8 @@ If SELECT is non-nil, select the buffer after displaying it."
   "Highlight search phrases in buffer."
   (let ((keyword-list (cl-remove-if
                        (lambda (word)
-                         (member word '("OR" "AND" "XOR" "NOT")))
+                         (or (member word '("OR" "AND" "XOR" "NOT" "NEAR"))
+                             (string-prefix-p "ADJ" word)))
                        (split-string (xeft--get-search-phrase))))
         (inhibit-read-only t))
     (dolist (keyword keyword-list)
@@ -456,16 +478,29 @@ Once refreshed the buffer, set this to nil.")
 
 (defun xeft--tighten-search-phrase (phrase)
   "Basically insert AND between each term in PHRASE."
-  (let ((lst (split-string phrase)))
+  (let ((lst (split-string phrase))
+        (in-quote nil))
+    ;; Basically we only insert AND between two normal phrases, and
+    ;; don’t insert if any of the two is an operator (AND, OR, +/-,
+    ;; etc), we also don’t insert AND in quoted phrases.
     (string-join
      (append (cl-loop for idx from 0 to (- (length lst) 2)
                       for this = (nth idx lst)
                       for next = (nth (1+ idx) lst)
                       collect this
-                      if (not (or (member this '("AND" "NOT" "OR" "XOR"))
-                                  (memq (aref this 0) '(?+ ?-))
-                                  (member next '("AND" "NOT" "OR" "XOR"))
-                                  (memq (aref next 0) '(?+ ?-))))
+                      if (and (not in-quote) (eq (aref this 0) ?\"))
+                      do (setq in-quote t)
+                      if (and in-quote
+                              (eq (aref this (1- (length this))) ?\"))
+                      do (setq in-quote nil)
+                      if (not
+                          (or in-quote
+                              (member this '("AND" "NOT" "OR" "XOR" "NEAR"))
+                              (string-prefix-p "ADJ" this)
+                              (memq (aref this 0) '(?+ ?-))
+                              (member next '("AND" "NOT" "OR" "XOR" "NEAR"))
+                              (string-prefix-p "ADJ" next)
+                              (memq (aref next 0) '(?+ ?-))))
                       collect "AND")
              (last lst))
      " ")))

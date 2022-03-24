@@ -23,6 +23,29 @@ to t.
 
 See the “xeft” customize group for more custom options and faces.
 
+# Queries
+
+On search queries:
+
+Since Xeft uses Xapian, it supports the query syntax Xapian supports:
+
+```
+AND, NOT, OR, XOR and parenthesizes
++word1 -word2      which matches documents that contains WORD1 but not
+                   WORD2.
+word1 NEAR word2   which matches documents in where word1 is near word2.
+word1 ADJ word2    which matches documents in where word1 is near word2
+                   and word1 comes before word2
+"word1 word2"      which matches exactly “word1 word2”
+```
+
+Xeft deviates from Xapian in one aspect: consecutive phrases have
+implied `AND` between them. So `word1 word2 word3` is actually seen as
+`word1 AND word2 AND word3`.
+
+See https://xapian.org/docs/queryparser.html for Xapian’s official
+documentation on query syntax.
+
 # building the dynamic module
 
 To build the module, you need to have Xapian installed. On Mac, it can
