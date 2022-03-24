@@ -145,6 +145,29 @@ Xeft doesn’t follow symlinks and ignores inaccessible directories."
       (message "Failed to compile the module")
       nil)))
 
+(defvar xeft--linux-module-url "https://github.com/casouri/xapian-lite/releases/download/v1.0/xapian-lite-amd64-linux.so"
+  "URL for pre-built dynamic module for Linux.")
+
+(defvar xeft--mac-module-url "https://github.com/casouri/xapian-lite/releases/download/v1.0/xapian-lite-amd64-mac.dylib"
+  "URL for pre-built dynamic module for Mac.")
+
+(defun xeft--download-module ()
+  "Download pre-built module from GitHub. Return non-nil if success."
+  (require 'url)
+  (let ((module-path (expand-file-name
+                      "xapian-lite.so"
+                      (file-name-directory
+                       (locate-library "xeft.el" t)))))
+    (cond
+     ((eq system-type 'gnu/linux)
+      (url-copy-file xeft--linux-module-url module-path)
+      t)
+     ((eq system-type 'darwin)
+      (url-copy-file xeft--mac-module-url module-path)
+      t)
+     (t (message "No pre-built module for this operating system. We only have them for GNU/Linux and macOS")
+        nil))))
+
 ;;; Helpers
 
 (defvar xeft--last-window-config nil
@@ -219,21 +242,35 @@ Xeft doesn’t follow symlinks and ignores inaccessible directories."
   (when (not (file-exists-p xeft-database))
     (mkdir xeft-database t))
   (unless (require 'xapian-lite nil t)
-    (when (y-or-n-p
-           "Xeft needs the dynamic module to work, compile it now? ")
-      (when (xeft--compile-module)
+    (let* ((choice (read-char (concat
+                               "Xeft needs the dynamic module to work, "
+                               "download pre-built module "
+                               (propertize "[b]" 'face 'bold)
+                               " (GNU/Linux and Mac only), or compile "
+                               (propertize "[c]" 'face 'bold)
+                               ", or give up "
+                               (propertize "[q]" 'face 'bold)
+                               "?")))
+           (success (cond ((eq choice ?b)
+                           (xeft--download-module))
+                          ((eq choice ?c)
+                           (xeft--compile-module))
+                          (t nil))))
+      (when success
         (require 'xapian-lite))))
-  (setq xeft--last-window-config (current-window-configuration))
-  (switch-to-buffer (xeft--buffer))
-  (when (not (derived-mode-p 'xeft-mode))
-    (xeft-mode))
-  ;; Reindex all files. We reindex every time M-x xeft is called.
-  ;; Because sometimes I use other functions to move between files,
-  ;; edit them, and come back to Xeft buffer to search. By that time
-  ;; some file are changed without Xeft noticing.
-  (xeft-full-reindex)
-  ;; Also regenerate newest file cache, for the same reason as above.
-  (xeft--front-page-cache-refresh))
+  (if (not (featurep 'xapian-lite))
+      (message "Since there is no require dynamic module, we can’t start Xeft")
+    (setq xeft--last-window-config (current-window-configuration))
+    (switch-to-buffer (xeft--buffer))
+    (when (not (derived-mode-p 'xeft-mode))
+      (xeft-mode))
+    ;; Reindex all files. We reindex every time M-x xeft is called.
+    ;; Because sometimes I use other functions to move between files,
+    ;; edit them, and come back to Xeft buffer to search. By that time
+    ;; some file are changed without Xeft noticing.
+    (xeft-full-reindex)
+    ;; Also regenerate newest file cache, for the same reason as above.
+    (xeft--front-page-cache-refresh)))
 
 (defun xeft-create-note ()
   "Create a new note with the current search phrase as the title."
