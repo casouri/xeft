@@ -3,8 +3,10 @@
 # Usage
 
 To use Xeft the note searching interface, install it and type `M-x
-xeft RET` to bring up the panel. If the dynamic module isn’t compiled,
-you are prompted to compile it. Refer to the next section for
+xeft RET` to bring up the panel. If the dynamic module doesn’t already
+exists, you are prompted to download or compile it automatically. If
+you choose to download the module, no more action is required. If you
+want to compile the module locally, refer to the next section for
 prerequisites for compiling the module.
 
 Once the xeft buffer is up, type the search phrase in the first line.

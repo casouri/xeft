@@ -242,11 +242,13 @@ Xeft doesn’t follow symlinks and ignores inaccessible directories."
   (when (not (file-exists-p xeft-database))
     (mkdir xeft-database t))
   (unless (require 'xapian-lite nil t)
+    ;; I can hide download option for non-Linux/mac users, but I’m
+    ;; lazy.
     (let* ((choice (read-char (concat
                                "Xeft needs the dynamic module to work, "
                                "download pre-built module "
                                (propertize "[b]" 'face 'bold)
-                               " (GNU/Linux and Mac only), or compile "
+                               ", compile locally "
                                (propertize "[c]" 'face 'bold)
                                ", or give up "
                                (propertize "[q]" 'face 'bold)
