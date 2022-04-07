@@ -183,7 +183,12 @@ Xeft doesn’t follow symlinks and ignores inaccessible directories."
 
 (defun xeft--after-save ()
   "Reindex the file."
-  (xapian-lite-reindex-file (buffer-file-name) xeft-database))
+  (condition-case _
+      (xapian-lite-reindex-file (buffer-file-name) xeft-database)
+    (xapian-lite-database-lock-error
+     (message "The Xeft database is locked (maybe there is another Xeft instance running) so we will skip indexing this file for now"))
+    (xapian-lite-database-corrupt-error
+     (message "The Xeft database is corrupted! You should delete the database and Xeft will recreate it. Make sure other programs are not messing with Xeft database"))))
 
 (defvar xeft-mode-map
   (let ((map (make-sparse-keymap)))
@@ -328,8 +333,13 @@ Xeft doesn’t follow symlinks and ignores inaccessible directories."
 (defun xeft-full-reindex ()
   "Do a full reindex of all files."
   (interactive)
-  (dolist (file (xeft--file-list))
-    (xapian-lite-reindex-file file xeft-database)))
+  (condition-case _
+      (dolist (file (xeft--file-list))
+        (xapian-lite-reindex-file file xeft-database))
+    (xapian-lite-database-lock-error
+     (message "The Xeft database is locked (maybe there is another Xeft instance running) so we will skip indexing for now"))
+    (xapian-lite-database-corrupt-error
+     (message "The Xeft database is corrupted! You should delete the database and Xeft will recreate it. Make sure other programs are not messing with Xeft database"))))
 
 ;;; Draw
 

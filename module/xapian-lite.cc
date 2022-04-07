@@ -305,6 +305,18 @@ Fxapian_lite_reindex_file
                            "Cannot open the file");
       return NULL;
     }
+  catch (Xapian::DatabaseCorruptError &e)
+    {
+      emp_signal_message1 (env, "xapian-lite-database-corrupt-error",
+                           e.get_description().c_str());
+      return NULL;
+    }
+  catch (Xapian::DatabaseLockError &e)
+    {
+      emp_signal_message1 (env, "xapian-lite-database-lock-error",
+                           e.get_description().c_str());
+      return NULL;
+    }
   catch (Xapian::Error &e)
     {
       emp_signal_message1 (env, "xapian-lite-lib-error",
@@ -414,6 +426,10 @@ emacs_module_init (struct emacs_runtime *ert) EMACS_NOEXCEPT
                 "Generic xapian-lite error", "error");
   emp_define_error (env, "xapian-lite-lib-error",
                 "Xapian library error", "xapian-lite-error");
+  emp_define_error (env, "xapian-lite-database-corrupt-error",
+                "Xapian library error", "xapian-lite-lib-error");
+  emp_define_error (env, "xapian-lite-database-lock-error",
+                "Xapian library error", "xapian-lite-lib-error");
   emp_define_error (env, "xapian-lite-file-error",
                 "Cannot open file", "xapian-lite-error");
 
