@@ -67,6 +67,10 @@ Here `/opt/local` is the default prefix of macports, which is what I
 used to install Xapian. Homebrew and Linux users probably can leave it
 empty.
 
+I can’t test it but on windows you can get msys2 and
+`mingw-w64-x86_64-xapian-core` and `make` should just work. Thanks to
+pRot0ta1p for reporting this.
+
 # notdeft
 
 I owe many thanks to the author of notdeft. I don’t really know C++ or
