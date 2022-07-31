@@ -14,8 +14,9 @@
 
 /*
   Copy a Lisp string VALUE into BUFFER, and store the string size in
-  SIZE.  A user doesn’t need to allocate BUFFER, but it is the user’s
-  responsibility to free it.
+  SIZE. A user doesn’t need to allocate BUFFER, but it is the user’s
+  responsibility to free it. If failed, return false, and the buffer
+  doesn’t need to be freed.
  */
 bool
 emp_copy_string_contents

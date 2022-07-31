@@ -224,7 +224,6 @@ copy_string (emacs_env *env, emacs_value value)
     }
   else
     {
-      free (char_buffer);
       emp_signal_message1 (env, "xapian-lite-error",
               "Error turning lisp string to C++ string");
       return "";
