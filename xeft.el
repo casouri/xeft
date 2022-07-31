@@ -122,6 +122,11 @@ xeft again."
 Xeft doesn’t follow symlinks and ignores inaccessible directories."
   :type 'boolean)
 
+(defcustom xeft-file-list-function #'xeft--file-list
+  "A function that returns files that xeft should search from.
+This function takes no arguments and return a list of absolute paths."
+  :type 'function)
+
 ;;; Compile
 
 (defun xeft--compile-module ()
@@ -334,7 +339,7 @@ Xeft doesn’t follow symlinks and ignores inaccessible directories."
   "Do a full reindex of all files."
   (interactive)
   (condition-case _
-      (dolist (file (xeft--file-list))
+      (dolist (file (funcall xeft-file-list-function))
         (xapian-lite-reindex-file file xeft-database))
     (xapian-lite-database-lock-error
      (message "The Xeft database is locked (maybe there is another Xeft instance running) so we will skip indexing for now"))
@@ -509,7 +514,9 @@ search phrase the user typed."
   (xeft-refresh t))
 
 (defun xeft--file-list ()
-  "Return a list of all files in ‘xeft-directory’."
+  "Default function for ‘xeft-file-list-function’.
+Return a list of all files in ‘xeft-directory’, ignoring dot
+files and directories and check for ‘xeft-ignore-extension’."
   (cl-remove-if-not
    (lambda (file)
      (and (file-regular-p file)
@@ -518,8 +525,12 @@ search phrase the user typed."
           (not (member (file-name-extension file)
                        xeft-ignore-extension))))
    (if xeft-recursive
-       (directory-files-recursively xeft-directory "" nil t)
-     (directory-files xeft-directory t nil t))))
+       (directory-files-recursively
+        xeft-directory "" nil (lambda (dir)
+                                (not (string-prefix-p
+                                      "." (file-name-base dir)))))
+     (directory-files
+      xeft-directory t nil t))))
 
 (defvar-local xeft--need-refresh t
   "If change is made to the buffer, set this to t.
@@ -577,7 +588,8 @@ Once refreshed the buffer, set this to nil.")
 (defun xeft--front-page-cache-refresh ()
   "Refresh ‘xeft--front-page-cache’ and return it."
   (setq xeft--front-page-cache
-        (cl-sort (xeft--file-list) #'file-newer-than-file-p)))
+        (cl-sort (funcall xeft-file-list-function)
+                 #'file-newer-than-file-p)))
 
 (defun xeft-refresh (&optional full)
   "Search for notes and display their summaries.
@@ -687,6 +699,61 @@ non-nil, display all results."
     (remove-hook 'window-selection-change-functions
                  #'xeft--cleanup-highlight
                  t)))
+
+;;; Inferred links
+
+(defun xeft--extract-buffer-words (buffer)
+  "Extract words in BUFFER and return in a list.
+Each element looks like (BEG . WORD) where BEG is the buffer
+position of WORD."
+  (with-current-buffer buffer
+    (goto-char (point-min))
+    (let (beg end word-list)
+      (while (progn (and (re-search-forward (rx word) nil t)
+                         (setq beg (match-beginning 0))
+                         (re-search-forward (rx (not word)) nil t)
+                         (setq end (match-beginning 0))))
+        (push (cons beg (buffer-substring-no-properties beg end))
+              word-list))
+      (nreverse word-list))))
+
+(defun xeft--generate-phrase-list (word-list max-len)
+  "Given WORD-LIST, generate all possible phrases up to MAX-LEN long.
+Eg, given WORD-LIST = (a b c), len = 3, return
+
+    ((a) (b) (c) (a b) (b c) (a b c))"
+  (cl-loop for len from 1 to max-len
+           append (cl-loop
+                   for idx from 0 to (- (length word-list) len)
+                   collect (cl-subseq word-list idx (+ idx len)))))
+
+(defun xeft--collect-inferred-links
+    (buffer max-len lower-bound upper-bound)
+  "Collect inferred links in BUFFER.
+MAX-LEN is the same as in ‘xeft--generate-phrase-list’. Only
+phrases with number of results between LOWER-BOUND and
+UPPER-BOUND (inclusive) are collected."
+  (let* ((word-list (xeft--extract-buffer-words buffer))
+         (phrase-list (xeft--generate-phrase-list
+                       word-list max-len))
+         (query-list (mapcar (lambda (phrase-list)
+                               (let ((pos (caar phrase-list))
+                                     (words (mapcar #'cdr phrase-list)))
+                                 (cons pos (concat "\""
+                                                   (string-join
+                                                    words)
+                                                   "\""))))
+                             phrase-list))
+         (link-list
+          ;; QUERY-CONS = (POS . QUERY-TERM)
+          (cl-loop for query-cons in query-list
+                   for file-list = (xapian-lite-query-term
+                                    (cdr query-cons) xeft-database
+                                    0 (1+ upper-bound))
+                   if (<= lower-bound (length file-list) upper-bound)
+                   collect (cons (cdr query-cons)
+                                 (length file-list)))))
+    link-list))
 
 (provide 'xeft)
 
