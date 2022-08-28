@@ -9,8 +9,7 @@ LDLIBS=-lxapian
 # Dylib extensions.
 ifeq ($(OS),Windows_NT)
 	SOEXT = dll
-endif
-ifeq ($(shell uname),Darwin)
+else ifeq ($(shell uname),Darwin)
 	SOEXT = dylib
 else
 	SOEXT = so
