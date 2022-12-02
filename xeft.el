@@ -1,6 +1,7 @@
 ;;; xeft.el --- Deft feat. Xapian      -*- lexical-binding: t; -*-
 
 ;; Author: Yuan Fu <casouri@gmail.com>
+;; Version: 1.0
 
 ;;; This file is NOT part of GNU Emacs
 
