@@ -1,7 +1,7 @@
 ;;; xeft.el --- Deft feat. Xapian      -*- lexical-binding: t; -*-
 
 ;; Author: Yuan Fu <casouri@gmail.com>
-;; Version: 0.9.0
+;; Version: 3.0
 
 ;;; This file is NOT part of GNU Emacs
 
@@ -151,10 +151,10 @@ This function takes no arguments and return a list of absolute paths."
       (message "Failed to compile the module")
       nil)))
 
-(defvar xeft--linux-module-url "https://github.com/casouri/xapian-lite/releases/download/v1.0/xapian-lite-amd64-linux.so"
+(defvar xeft--linux-module-url "https://github.com/casouri/xapian-lite/releases/download/v2.0/xapian-lite-amd64-linux.so"
   "URL for pre-built dynamic module for Linux.")
 
-(defvar xeft--mac-module-url "https://github.com/casouri/xapian-lite/releases/download/v1.0/xapian-lite-amd64-mac.dylib"
+(defvar xeft--mac-module-url "https://github.com/casouri/xapian-lite/releases/download/v2.0/xapian-lite-amd64-macos.dylib"
   "URL for pre-built dynamic module for Mac.")
 
 (defun xeft--download-module ()

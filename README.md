@@ -48,16 +48,14 @@ implied `AND` between them. So `word1 word2 word3` is actually seen as
 See https://xapian.org/docs/queryparser.html for Xapian’s official
 documentation on query syntax.
 
-# building the dynamic module
+# Building the dynamic module
 
-To build the module, you need to have Xapian installed. On Mac, it can
-be installed with macports by
+If the dynamic module is not installed yet, xeft will automatically
+prompt you to either download a prebuilt module or build the module
+locally. Prebuilt modules don’t require xapian, but to build the
+module locally and run it, you need to install xapian.
 
-```shell
-sudo port install xapian-core
-```
-
-Then, build the module by
+You can also build by command line:
 
 ```shell
 make PREFIX=/opt/local
