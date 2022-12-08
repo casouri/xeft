@@ -2,7 +2,7 @@
 # Even if this is unnecessary, it doesn’t hurt.
 PREFIX=/usr/local
 CXX=g++
-CXXFLAGS=-fPIC -I$(PREFIX)/include -std=c++11 -stdlib=libc++
+CXXFLAGS=-fPIC -I$(PREFIX)/include -std=c++11
 LDFLAGS=-L$(PREFIX)/lib
 LDLIBS=-lxapian
 
