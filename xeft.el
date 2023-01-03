@@ -151,10 +151,10 @@ This function takes no arguments and return a list of absolute paths."
       (message "Failed to compile the module")
       nil)))
 
-(defvar xeft--linux-module-url "https://github.com/casouri/xapian-lite/releases/download/v2.0/xapian-lite-amd64-linux.so"
+(defvar xeft--linux-module-url "https://git.sr.ht/~casouri/xapian-lite/refs/download/v2.0.0/xapian-lite-amd64-linux.so"
   "URL for pre-built dynamic module for Linux.")
 
-(defvar xeft--mac-module-url "https://github.com/casouri/xapian-lite/releases/download/v2.0/xapian-lite-amd64-macos.dylib"
+(defvar xeft--mac-module-url "https://git.sr.ht/~casouri/xapian-lite/refs/download/v2.0.0/xapian-lite-amd64-macos.dylib"
   "URL for pre-built dynamic module for Mac.")
 
 (defun xeft--download-module ()

@@ -79,4 +79,4 @@ happier using notdeft instead.
 
 # Xapian dynamic module
 
-I wrote a xapian dynamic module that you can use too. Check it out at <https://github.com/casouri/xapian-lite>.
+I wrote a xapian dynamic module that you can use too. Check it out at https://git.sr.ht/~casouri/xapian-lite
