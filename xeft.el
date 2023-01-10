@@ -1,11 +1,11 @@
 ;;; xeft.el --- Deft feat. Xapian      -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2019-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2019-2023 Free Software Foundation, Inc.
 
 ;; Author: Yuan Fu <casouri@gmail.com>
 ;; Maintainer: Yuan Fu <casouri@gmail.com>
 ;; URL: https://git.sr.ht/~casouri/xeft
-;; Version: 3.1
+;; Version: 3.2
 ;; Keywords: Applications, Note, Searching
 ;; Package-Requires: ((emacs "26.0"))
 
