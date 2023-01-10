@@ -178,22 +178,47 @@ This function takes no arguments and return a list of absolute paths."
 (defvar xeft--mac-module-url "https://git.sr.ht/~casouri/xapian-lite/refs/download/v2.0.0/xapian-lite-amd64-macos.dylib"
   "URL for pre-built dynamic module for Mac.")
 
+(defun xeft--require-xapian-lite ()
+  "Require ‘xapian-lite’, if non-exist, try to build or download it.
+If success return non-nil, otherwise return nil."
+  (if (require 'xapian-lite nil t)
+      t
+    ;; I can hide download option for non-Linux/mac users, but I’m
+    ;; lazy.
+    (let* ((choice (car (read-multiple-choice
+                         "Xeft needs the dynamic module to work, how do you want to get it? "
+                         '((?c "compile locally" "Compile the dynamic module locally, this requires libxapian, C++ compiler, and Make")
+                           (?d "download from Internet" "Download pre-built dynamic module from Internet")
+                           (?q "quit")))))
+           (success (pcase choice
+                      (?d (xeft--download-module))
+                      (?c (xeft--compile-module))
+                      (_ nil))))
+      (if success
+          (progn (require 'xapian-lite) t)
+        nil))))
+
 (defun xeft--download-module ()
   "Download pre-built module from GitHub. Return non-nil if success."
-  (require 'url)
-  (let ((module-path (expand-file-name
-                      "xapian-lite.so"
-                      (file-name-directory
-                       (locate-library "xeft.el" t)))))
-    (cond
-     ((eq system-type 'gnu/linux)
-      (url-copy-file xeft--linux-module-url module-path)
-      t)
-     ((eq system-type 'darwin)
-      (url-copy-file xeft--mac-module-url module-path)
-      t)
-     (t (message "No pre-built module for this operating system. We only have them for GNU/Linux and macOS")
-        nil))))
+  (when (y-or-n-p "You are about to download binary from Internet without checking checksum, do you want to continue?")
+    (let ((system (car (read-multiple-choice
+                        "Which prebuilt binary do you want to download? "
+                        '((?1 "amd64-GNU/Linux"
+                              "GNU/Linux on Intel/AMD x86_64 CPU")
+                          (?2 "amd64-macOS"
+                              "macOS on Intel/AMD x86_64 CPU")
+                          (?q "quit")))))
+          (module-path (expand-file-name
+                        "xapian-lite.so"
+                        (file-name-directory
+                         (locate-library "xeft.el" t)))))
+      (if (eq system ?q)
+          nil
+        (url-copy-file
+         (pcase system
+           (1 xeft--linux-module-url)
+           (2 xeft--mac-module-url))
+         module-path)))))
 
 ;;; Helpers
 
@@ -273,27 +298,8 @@ This function takes no arguments and return a list of absolute paths."
     (user-error "XEFT-DATABASE must be an absolute path"))
   (when (not (file-exists-p xeft-database))
     (mkdir xeft-database t))
-  (unless (require 'xapian-lite nil t)
-    ;; I can hide download option for non-Linux/mac users, but I’m
-    ;; lazy.
-    (let* ((choice (read-char (concat
-                               "Xeft needs the dynamic module to work, "
-                               "download pre-built module "
-                               (propertize "[b]" 'face 'bold)
-                               ", compile locally "
-                               (propertize "[c]" 'face 'bold)
-                               ", or give up "
-                               (propertize "[q]" 'face 'bold)
-                               "?")))
-           (success (cond ((eq choice ?b)
-                           (xeft--download-module))
-                          ((eq choice ?c)
-                           (xeft--compile-module))
-                          (t nil))))
-      (when success
-        (require 'xapian-lite))))
-  (if (not (featurep 'xapian-lite))
-      (message "Since there is no require dynamic module, we can’t start Xeft")
+  (if (not (xeft--require-xapian-lite))
+      (message "Cannot start xeft because required dynamic module is missing")
     (setq xeft--last-window-config (current-window-configuration))
     (switch-to-buffer (xeft--buffer))
     (when (not (derived-mode-p 'xeft-mode))
