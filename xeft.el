@@ -201,24 +201,24 @@ If success return non-nil, otherwise return nil."
 (defun xeft--download-module ()
   "Download pre-built module from GitHub. Return non-nil if success."
   (when (y-or-n-p "You are about to download binary from Internet without checking checksum, do you want to continue?")
-    (let ((system (car (read-multiple-choice
-                        "Which prebuilt binary do you want to download? "
-                        '((?1 "amd64-GNU/Linux"
-                              "GNU/Linux on Intel/AMD x86_64 CPU")
-                          (?2 "amd64-macOS"
-                              "macOS on Intel/AMD x86_64 CPU")
-                          (?q "quit")))))
-          (module-path (expand-file-name
-                        "xapian-lite.so"
-                        (file-name-directory
-                         (locate-library "xeft.el" t)))))
-      (if (eq system ?q)
-          nil
-        (url-copy-file
-         (pcase system
-           (1 xeft--linux-module-url)
-           (2 xeft--mac-module-url))
-         module-path)))))
+    (let* ((system (car (read-multiple-choice
+                         "Which prebuilt binary do you want to download? "
+                         '((?1 "amd64-GNU/Linux"
+                               "GNU/Linux on Intel/AMD x86_64 CPU")
+                           (?2 "amd64-macOS"
+                               "macOS on Intel/AMD x86_64 CPU")
+                           (?q "quit")))))
+           (module-path (expand-file-name
+                         "xapian-lite.so"
+                         (file-name-directory
+                          (locate-library "xeft.el" t))))
+           (url (pcase system
+                  (?1 xeft--linux-module-url)
+                  (?2 xeft--mac-module-url))))
+      (when (and url
+                 (y-or-n-p (format "Downloading from %s, is that ok?"
+                                   url)))
+        (url-copy-file url module-path)))))
 
 ;;; Helpers
 
