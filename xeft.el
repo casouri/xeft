@@ -157,16 +157,15 @@ This function takes no arguments and return a list of absolute paths."
   ;; Just following vterm.el here.
   (when (not (executable-find "make"))
     (user-error "Couldn’t compile xeft: cannot find make"))
-  (let* ((source-dir
+  (let* ((default-directory
           (shell-quote-argument
            (file-name-directory
             (locate-library "xeft.el" t))))
-         (command (format "cd %s; make PREFIX=%s"
-                          source-dir
-                          (read-string "PREFIX (empty by default): ")))
+         (prefix (concat "PREFIX="
+                         (read-string "PREFIX (empty by default): ")))
          (buffer (get-buffer-create "*xeft compile*")))
     (if (zerop (let ((inhibit-read-only t))
-                 (call-process "sh" nil buffer t "-c" command)))
+                 (call-process "make" nil buffer t prefix)))
         (progn (message "Successfully compiled the module :-D") t)
       (pop-to-buffer buffer)
       (compilation-mode)
