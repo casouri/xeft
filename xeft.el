@@ -158,9 +158,8 @@ This function takes no arguments and return a list of absolute paths."
   (when (not (executable-find "make"))
     (user-error "Couldn’t compile xeft: cannot find make"))
   (let* ((default-directory
-          (shell-quote-argument
-           (file-name-directory
-            (locate-library "xeft.el" t))))
+          (file-name-directory
+           (locate-library "xeft.el" t)))
          (prefix (concat "PREFIX="
                          (read-string "PREFIX (empty by default): ")))
          (buffer (get-buffer-create "*xeft compile*")))
