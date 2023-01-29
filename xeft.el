@@ -138,6 +138,15 @@ indexed in the database, simply delete the database and start
 xeft again."
   :type '(list string))
 
+(defcustom xeft-file-filter #'xeft-default-file-filter
+  "A filter function that excludes files from indexing.
+
+If ‘xeft-ignore-extension’ is not flexible enough, customize this
+function to filter out unwanted files. This function should take
+the absolute path of a file and return t/nil indicating
+keeping/excluding the file from indexing."
+  :type 'function)
+
 (defcustom xeft-recursive nil
   "If non-nil, xeft searches for file recursively.
 Xeft doesn’t follow symlinks and ignores inaccessible directories."
@@ -538,17 +547,24 @@ search phrase the user typed."
   (interactive)
   (xeft-refresh t))
 
+(defun xeft-default-file-filter (file)
+  "Return nil if FILE should be ignored.
+
+FILE is an absolute path. This default implementation ignores
+directories, dot files, and files matched by
+‘xeft-ignore-extension’."
+  (and (file-regular-p file)
+       (not (string-prefix-p
+             "." (file-name-base file)))
+       (not (member (file-name-extension file)
+                    xeft-ignore-extension))))
+
 (defun xeft--file-list ()
   "Default function for ‘xeft-file-list-function’.
 Return a list of all files in ‘xeft-directory’, ignoring dot
 files and directories and check for ‘xeft-ignore-extension’."
   (cl-remove-if-not
-   (lambda (file)
-     (and (file-regular-p file)
-          (not (string-prefix-p
-                "." (file-name-base file)))
-          (not (member (file-name-extension file)
-                       xeft-ignore-extension))))
+   xeft-file-filter
    (if xeft-recursive
        (directory-files-recursively
         xeft-directory "" nil (lambda (dir)
