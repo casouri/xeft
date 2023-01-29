@@ -135,7 +135,10 @@
 
 To remove the files that you want to ignore but are already
 indexed in the database, simply delete the database and start
-xeft again."
+xeft again.
+
+If this is not flexible enough, take a look at
+‘xeft-file-filter’."
   :type '(list string))
 
 (defcustom xeft-file-filter #'xeft-default-file-filter
@@ -157,7 +160,10 @@ from indexing."
 
 (defcustom xeft-recursive nil
   "If non-nil, xeft searches for file recursively.
-Xeft doesn’t follow symlinks and ignores inaccessible directories."
+
+Xeft doesn’t follow symlinks and ignores inaccessible
+directories. Customize ‘xeft-directory-filter’ to exclude
+subdirectories."
   :type 'boolean)
 
 (defcustom xeft-file-list-function #'xeft--file-list
