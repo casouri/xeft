@@ -147,6 +147,14 @@ the absolute path of a file and return t/nil indicating
 keeping/excluding the file from indexing."
   :type 'function)
 
+(defcustom xeft-directory-filter #'xeft-default-directory-filter
+  "A filter function that excludes directories from indexing.
+
+This function is useful when ‘xeft-recursive’ is non-nil, and you
+want to exclude certain directories (and its enclosing files)
+from indexing."
+  :type 'function)
+
 (defcustom xeft-recursive nil
   "If non-nil, xeft searches for file recursively.
 Xeft doesn’t follow symlinks and ignores inaccessible directories."
@@ -559,6 +567,12 @@ directories, dot files, and files matched by
        (not (member (file-name-extension file)
                     xeft-ignore-extension))))
 
+(defun xeft-default-directory-filter (dir)
+  "Return nil if DIR shouldn’t be indexed.
+DIR is an absolute path. This default implementation excludes dot
+directories."
+  (not (string-prefix-p "." (file-name-base dir))))
+
 (defun xeft--file-list ()
   "Default function for ‘xeft-file-list-function’.
 Return a list of all files in ‘xeft-directory’, ignoring dot
@@ -567,9 +581,7 @@ files and directories and check for ‘xeft-ignore-extension’."
    xeft-file-filter
    (if xeft-recursive
        (directory-files-recursively
-        xeft-directory "" nil (lambda (dir)
-                                (not (string-prefix-p
-                                      "." (file-name-base dir)))))
+        xeft-directory "" nil xeft-directory-filter)
      (directory-files
       xeft-directory t nil t))))
 
