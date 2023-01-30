@@ -58,11 +58,16 @@
 ;; supports:
 ;;
 ;; AND, NOT, OR, XOR and parenthesizes
-;; +word1 -word2      which matches documents that contains WORD1 but not
-;;                    WORD2.
-;; word1 NEAR word2   which matches documents in where word1 is near word2.
+;;
+;; +word1 -word2      which matches documents that contains word1 but not
+;;                    word2.
+;;
+;; word1 NEAR word2   which matches documents in where word1 is near
+;;                    word2.
+;;
 ;; word1 ADJ word2    which matches documents in where word1 is near word2
 ;;                    and word1 comes before word2
+;;
 ;; "word1 word2"      which matches exactly “word1 word2”
 ;;
 ;; Xeft deviates from Xapian in one aspect: consecutive phrases have
@@ -72,6 +77,34 @@
 ;;
 ;; See https://xapian.org/docs/queryparser.html for Xapian’s official
 ;; documentation on query syntax.
+;;
+;; Further customization:
+;;
+;; You can customize the following faces
+
+;; - `xeft-selection'
+;; - `xeft-inline-highlight'
+;; - `xeft-preview-highlight'
+;; - `xeft-excerpt-title'
+;; - `xeft-excerpt-body'
+
+;; Functions you can customize to alter Xeft’s behavior:
+
+;; - `xeft-filename-fn': How does Xeft create new files from search
+;;   phrases.
+;;
+;; - `xeft-file-filter': Which files does Xeft include/exclude from
+;;   indexing.
+;;
+;; - `xeft-directory-filter': When `xeft-recursive' is t, which
+;;   sub-directories does Xeft include/exclude from indexing.
+;;
+;; - `xeft-title-function': How does Xeft find the title of a file.
+;;
+;; - `xeft-file-list-function': If `xeft-file-filter' and
+;;   `xeft-directory-filter' are not flexible enough, this function
+;;   gives you ultimate control over which files to index.
+
 
 ;;; Code:
 
@@ -106,11 +139,11 @@
 
 (defface xeft-inline-highlight
   '((t . (:inherit underline :extend t)))
-  "Face for inline highlighting in Xeft buffer.")
+  "Face for highlighting the search phrase in excerpts in Xeft buffer.")
 
 (defface xeft-preview-highlight
   '((t . (:inherit highlight :extend t)))
-  "Face for highlighting in the preview buffer.")
+  "Face for highlighting  the search phrase in the preview buffer.")
 
 (defface xeft-excerpt-title
   '((t . (:inherit (bold underline))))

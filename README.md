@@ -11,7 +11,7 @@ you choose to download the module, no more action is required. If you
 want to compile the module locally, refer to the next section for
 prerequisites for compiling the module.
 
-Once the xeft buffer is up, type the search phrase in the first line.
+Once the Xeft buffer is up, type the search phrase in the first line.
 Press `C-n` and `C-p` to go through each file. You can preview a file
 in another window by pressing `SPC` on a file, or click the file with
 the mouse. Press `RET` to open the file in the current window.
@@ -35,8 +35,8 @@ Since Xeft uses Xapian, it supports the query syntax Xapian supports:
 
 ```
 AND, NOT, OR, XOR and parenthesizes
-+word1 -word2      which matches documents that contains WORD1 but not
-                   WORD2.
++word1 -word2      which matches documents that contains word1 but not
+                   word2.
 word1 NEAR word2   which matches documents in where word1 is near word2.
 word1 ADJ word2    which matches documents in where word1 is near word2
                    and word1 comes before word2
@@ -50,9 +50,30 @@ implied `AND` between them. So `word1 word2 word3` is actually seen as
 See https://xapian.org/docs/queryparser.html for Xapian’s official
 documentation on query syntax.
 
+# Further customization
+
+You can customize the following faces
+
+- `xeft-selection`
+- `xeft-inline-highlight`
+- `xeft-preview-highlight`
+- `xeft-excerpt-title`
+- `xeft-excerpt-body`
+
+Functions you can customize to alter Xeft’s behavior:
+
+- `xeft-filename-fn`: How does Xeft create new files from search phrases.
+- `xeft-file-filter`: Which files does Xeft include/exclude from indexing.
+- `xeft-directory-filter`: When `xeft-recursive` is t, which
+  sub-directories does Xeft include/exclude from indexing.
+- `xeft-title-function`: How does Xeft find the title of a file.
+- `xeft-file-list-function`: If `xeft-file-filter` and
+  `xeft-directory-filter` are not flexible enough, this function gives
+  you ultimate control over which files to index.
+
 # Building the dynamic module
 
-If the dynamic module is not installed yet, xeft will automatically
+If the dynamic module is not installed yet, Xeft will automatically
 prompt you to either download a prebuilt module or build the module
 locally. Prebuilt modules don’t require xapian, but to build the
 module locally and run it, you need to install xapian.
