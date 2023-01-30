@@ -1,4 +1,4 @@
-NOTE The primary repository is now at [SourceHut](https://git.sr.ht/~casouri/xeft).
+NOTE The primary repository is now at [SourceHut](https://sr.ht/~casouri/xeft).
 
 ![Demo gif](./demo.gif)
 
