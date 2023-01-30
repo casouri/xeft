@@ -158,6 +158,17 @@ want to exclude certain directories (and its enclosing files)
 from indexing."
   :type 'function)
 
+(defcustom xeft-title-function #'xeft-default-title
+  "A function that extracts the title of a file.
+
+This function is passed the absolute path of the file, and is
+called in a temporary buffer containing the content of the file,
+where point is at the beginning of the buffer.
+
+This function should return the title as a string, and leave
+point at the beginning of body text (ie, end of title)."
+  :type 'function)
+
 (defcustom xeft-recursive nil
   "If non-nil, xeft searches for file recursively.
 
@@ -504,6 +515,23 @@ Doesn’t check for modification time, and not used."
             (setcdr (nthcdr 29 xeft--ecache) nil))
           buf))))
 
+(defun xeft-default-title (file)
+  "Return the title of FILE.
+
+This is the default value of ‘xeft-title-function’, see its
+docstring for more detail.
+
+Return the first line as title, recognize Org Mode’s #+TITLE:
+cookie, if the first line is empty, return the file name as the
+title."
+  (re-search-forward (rx "#+TITLE:" (* whitespace)) nil t)
+  (let ((bol (point)) title)
+    (end-of-line)
+    (setq title (buffer-substring-no-properties bol (point)))
+    (if (eq title "")
+        (file-name-base file)
+      title)))
+
 (defun xeft--insert-file-excerpt (file search-phrase)
   "Insert an excerpt for FILE at point.
 This excerpt contains note title and content excerpt and is
@@ -522,11 +550,7 @@ search phrase the user typed."
       ;; ‘xeft--ecache-buffer’.
       (insert-file-contents file nil nil nil t)
       (goto-char (point-min))
-      (search-forward "#+TITLE: " (line-end-position) t)
-      (let ((bol (point)))
-        (end-of-line)
-        (setq title (buffer-substring-no-properties bol (point))))
-      (when (eq title "") (setq title "no title"))
+      (setq title (funcall xeft-title-function file))
       (narrow-to-region (point) (point-max))
       ;; Grab excerpt.
       (setq excerpt (string-trim
