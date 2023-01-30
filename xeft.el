@@ -514,6 +514,8 @@ search phrase the user typed."
          (car (last (split-string search-phrase))))
         title excerpt)
     (with-current-buffer (xeft--work-buffer)
+      (widen)
+      (erase-buffer)
       (setq buffer-undo-list t)
       ;; The times saved by caching is not significant enough. So I
       ;; choose to not cache, but kept the code just in case. See
