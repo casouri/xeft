@@ -565,11 +565,10 @@ title."
         (file-name-base file)
       title)))
 
-(defun xeft--insert-file-excerpt (file search-phrase)
-  "Insert an excerpt for FILE at point.
-This excerpt contains note title and content excerpt and is
-clickable. FILE should be an absolute path. SEARCH-PHRASE is the
-search phrase the user typed."
+(defun xeft--file-excerpt (file search-phrase)
+  "Return an excerpt for FILE.
+Return (TITLE EXCERPT FILE). FILE should be an absolute path.
+SEARCH-PHRASE is the search phrase the user typed."
   (let ((excerpt-len (floor (* 2.7 (1- (window-width)))))
         (last-search-term
          (car (last (split-string search-phrase))))
@@ -600,18 +599,70 @@ search phrase the user typed."
                         (buffer-substring-no-properties
                          (point)
                          (min (+ (point) excerpt-len)
-                              (point-max))))))))
-    ;; Now we insert the excerpt
+                              (point-max)))))))
+      (list title excerpt file))))
+
+(defun xeft--insert-file-excerpts (excerpt-list phrase-empty list-clipped)
+  "Insert search results into the buffer at point.
+
+EXCERPT-LIST is a list of (TITLE EXCERPT FILE), where TITLE is
+the title of the file, EXCERPT is a piece of excerpt from the
+file, and FILE is the absolute path of the file.
+
+PHRASE-EMPTY is a boolean indicating whether the search phrase is
+empty. LIST-CLIPPED is a boolean indicating whether the results
+list is truncated (ie, not the full list)."
+  (pcase-dolist (`(,title ,excerpt ,file) excerpt-list)
     (let ((start (point)))
-      (insert (propertize title 'face 'xeft-excerpt-title)
-              "\n"
-              (propertize excerpt 'face 'xeft-excerpt-body)
-              "\n\n")
+      (insert (propertize title 'face 'xeft-excerpt-title) "\n"
+              (propertize excerpt 'face 'xeft-excerpt-body) "\n\n")
       ;; If we use overlay (with `make-button'), the button's face
       ;; will override the bold and light face we specified above.
       (make-text-button start (- (point) 2)
                         :type 'xeft-excerpt
-                        'path file))))
+                        'path file)))
+  ;; NOTE: this string is referred in ‘xeft-create-note’.
+  (if (and (null excerpt-list)
+           (not phrase-empty))
+      (insert "Press RET to create a new note"))
+  (when list-clipped
+    (insert
+     (format
+      "[Only showing the first 15 results, type %s to show all of them]\n"
+      (key-description
+       (where-is-internal #'xeft-refresh-full xeft-mode-map t))))))
+
+(defun xeft--sort-excerpt (excerpt-list search-phrase)
+  "Sort EXCERPT-LIST according to SEARCH-PHRASE.
+
+EXCERPT-LIST is a list of (TITLE EXCERPT FILE), usually returned
+by ‘xeft--file-excerpt’. SEARCH-PHRASE is the search phrase
+entered by the user."
+  (if (equal search-phrase "")
+      excerpt-list
+    (let* ((phrase-list
+            (mapcar #'downcase (string-split search-phrase))))
+      (cl-stable-sort
+       excerpt-list
+       (lambda (ex1 ex2)
+         (> (xeft--excerpt-score (car ex1) phrase-list)
+            (xeft--excerpt-score (car ex2) phrase-list)))))))
+
+(defun xeft--excerpt-score (title search-phrases)
+  "The score function used to sort excerpts in ‘xeft--sort-excerpt’.
+
+TITLE is the title of the excerpt. SEARCH-PHRASES is the search
+phrase entered by the user, split into a list. We don’t remove
+the logical cookies like \"AND\", because I doubt it’ll make much
+difference. The phrases should be all lowercase.
+
+The score is the number of search phrases that appears in TITLE."
+  (let ((score 0)
+        (case-fold-search t))
+    (dolist (phrase search-phrases)
+      (when (string-match-p phrase title)
+        (cl-incf score)))
+    score))
 
 ;;; Refresh and search
 
@@ -701,7 +752,8 @@ Once refreshed the buffer, set this to nil.")
 
 ;; See comment in ‘xeft-refresh’.
 (defvar xeft--front-page-cache nil
-  "Stores the newest 15 or so files.")
+  "Stores the newest 15 or so files.
+This is a list of absolute paths.")
 
 (defun xeft--front-page-cache-refresh ()
   "Refresh ‘xeft--front-page-cache’ and return it."
@@ -743,44 +795,32 @@ non-nil, display all results."
         ;; 2. Display these files with excerpt. We do a
         ;; double-buffering: first insert in a temp buffer, then
         ;; insert the whole thing into this buffer.
-        (let ((inhibit-read-only t)
-              (orig-point (point))
-              (new-content
-               (while-no-input
-                 (with-temp-buffer
-                   ;; Insert excerpts.
-                   (if file-list
-                       (dolist (file file-list)
-                         (xeft--insert-file-excerpt
-                          file search-phrase))
-                     ;; NOTE: this string is referred in
-                     ;; ‘xeft-create-note’.
-                     (unless phrase-empty
-                       (insert "Press RET to create a new note")))
-                   ;; Insert clipped notice.
-                   (when list-clipped
-                     (insert
-                      (format
-                       "[Only showing the first 15 results, type %s to show all of them]\n"
-                       (key-description
-                        (where-is-internal #'xeft-refresh-full
-                                           xeft-mode-map t)))))
-                   (buffer-string)))))
+        (let* ((inhibit-read-only t)
+               (orig-point (point))
+               (excerpt-list
+                (while-no-input
+                  (xeft--sort-excerpt
+                   (mapcar (lambda (file)
+                             (xeft--file-excerpt file search-phrase))
+                           file-list)
+                   search-phrase))))
           ;; 2.2 Actually insert the content.
-          (when (stringp new-content)
-            (while-no-input
-              (setq buffer-undo-list t)
-              (goto-char (point-min))
-              (forward-line 2)
-              (let ((start (point)))
-                (delete-region (point) (point-max))
-                (insert new-content)
-                (put-text-property (- start 2) (point) 'read-only t)
-                (xeft--highlight-search-phrase)
-                (set-buffer-modified-p nil)
-                ;; If finished, update this variable.
-                (setq xeft--need-refresh nil)
-                (buffer-enable-undo))))
+          (while-no-input
+            (setq buffer-undo-list t)
+            (goto-char (point-min))
+            (forward-line 2)
+            (let ((start (point)))
+              (delete-region (point) (point-max))
+
+              (xeft--insert-file-excerpts
+               excerpt-list phrase-empty list-clipped)
+
+              (put-text-property (- start 2) (point) 'read-only t)
+              (xeft--highlight-search-phrase)
+              (set-buffer-modified-p nil)
+              ;; If finished, update this variable.
+              (setq xeft--need-refresh nil)
+              (buffer-enable-undo)))
           ;; Save excursion wouldn’t work since we erased the
           ;; buffer and re-inserted contents.
           (goto-char orig-point)
