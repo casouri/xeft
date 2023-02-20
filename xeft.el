@@ -171,7 +171,11 @@ indexed in the database, simply delete the database and start
 xeft again.
 
 If this is not flexible enough, take a look at
-‘xeft-file-filter’."
+‘xeft-file-filter’.
+
+Changing this variable along doesn’t remove already-indexed files
+from the database, you need to delete the database on disk and
+let xeft recreate it."
   :type '(list string))
 
 (defcustom xeft-file-filter #'xeft-default-file-filter
@@ -180,7 +184,11 @@ If this is not flexible enough, take a look at
 If ‘xeft-ignore-extension’ is not flexible enough, customize this
 function to filter out unwanted files. This function should take
 the absolute path of a file and return t/nil indicating
-keeping/excluding the file from indexing."
+keeping/excluding the file from indexing.
+
+Changing this variable along doesn’t remove already-indexed files
+from the database, you need to delete the database on disk and
+let xeft recreate it."
   :type 'function)
 
 (defcustom xeft-directory-filter #'xeft-default-directory-filter
@@ -188,7 +196,11 @@ keeping/excluding the file from indexing."
 
 This function is useful when ‘xeft-recursive’ is non-nil, and you
 want to exclude certain directories (and its enclosing files)
-from indexing."
+from indexing.
+
+Changing this variable along doesn’t remove already-indexed files
+from the database, you need to delete the database on disk and
+let xeft recreate it."
   :type 'function)
 
 (defcustom xeft-title-function #'xeft-default-title
@@ -203,16 +215,24 @@ point at the beginning of body text (ie, end of title)."
   :type 'function)
 
 (defcustom xeft-recursive nil
-  "If non-nil, xeft searches for file recursively.
+  "If non-nil, xeft searches for files recursively.
 
 Xeft doesn’t follow symlinks and ignores inaccessible
 directories. Customize ‘xeft-directory-filter’ to exclude
-subdirectories."
+subdirectories.
+
+Changing this variable along doesn’t remove already-indexed files
+from the database, you need to delete the database on disk and
+let xeft recreate it."
   :type 'boolean)
 
 (defcustom xeft-file-list-function #'xeft--file-list
   "A function that returns files that xeft should search from.
-This function takes no arguments and return a list of absolute paths."
+This function takes no arguments and return a list of absolute paths.
+
+Changing this variable along doesn’t remove already-indexed files
+from the database, you need to delete the database on disk and
+let xeft recreate it."
   :type 'function)
 
 ;;; Compile
@@ -428,7 +448,13 @@ If success return non-nil, otherwise return nil."
     (end-of-line)))
 
 (defun xeft-full-reindex ()
-  "Do a full reindex of all files."
+  "Do a full reindex of all files.
+
+This function only reindex files but doesn’t delete the database
+and recreate it. So if you changed the filter
+functions (‘xeft-file-filter’, etc), and want to remove the
+now-excluded files from the database, you need to manually delete
+the database."
   (interactive)
   (condition-case _
       (dolist (file (funcall xeft-file-list-function))
