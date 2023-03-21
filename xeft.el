@@ -697,6 +697,15 @@ The score is the number of search phrases that appears in TITLE."
   (interactive)
   (xeft-refresh t))
 
+(defun xeft--file-name-extension (path)
+  "Return the extension part of PATH.
+This differs from ‘file-name-extension’ in that it doesn’t remove
+trailing \"version strings\"."
+  (let ((filename (file-name-nondirectory path)))
+    (when (string-match (rx (not ".") "." (group (* (not "."))) eos)
+                        filename)
+      (match-string 1 filename))))
+
 (defun xeft-default-file-filter (file)
   "Return nil if FILE should be ignored.
 
@@ -706,7 +715,7 @@ directories, dot files, and files matched by
   (and (file-regular-p file)
        (not (string-prefix-p
              "." (file-name-base file)))
-       (not (member (file-name-extension file)
+       (not (member (xeft--file-name-extension file)
                     xeft-ignore-extension))))
 
 (defun xeft-default-directory-filter (dir)
