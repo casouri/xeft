@@ -103,3 +103,52 @@ happier using notdeft instead.
 # Xapian dynamic module
 
 I wrote a xapian dynamic module that you can use too. Check it out at https://git.sr.ht/~casouri/xapian-lite
+
+# Q & A
+
+**Why do I still see files that should’ve been ignored after changing `xeft-ignore-extension`?**
+
+You need to delete the database and let xeft rebuild it, because files
+already included into the database are not automatically deleted.
+
+**How to exclude a directory?**
+
+You can customize `xeft-directory-filter` or `xeft-file-list-function`
+to do it.
+
+**How to use the file name as excerpt title instead?**
+
+```emacs-lisp
+(setq xeft-title-function #'file-name-nondirectory)
+```
+
+**How to include files in the subdirectories?**
+
+```emacs-lisp
+(setq xeft-recusive t)
+;; Or
+(setq xeft-recusive 'follow-symlinks)
+```
+
+**How to make the preview pane to show up automatically? (without typing SPC)**
+
+```emacs-lisp
+(defvar-local xeft--displayed-by-xeft-p nil)
+
+(defun xeft--eager-preview()
+  (when-let* ((button (button-at (point)))
+              (path (button-get button 'path)))
+    ;; Kill previously displayed buffer.
+    (when (window-live-p xeft--preview-window)
+      (with-selected-window xeft--preview-window
+        (when xeft--displayed-by-xeft-p
+          (kill-buffer))))
+    ;; Show preview of current selection.
+    (xeft--preview-file path)))
+
+(add-hook 'xeft-find-file-hook
+          (lambda () (setq xeft--displayed-by-xeft-p t)))
+
+(advice-add 'xeft-next :after #'xeft--eager-preview)
+(advice-add 'xeft-previous :after #'xeft--eager-preview)
+```
