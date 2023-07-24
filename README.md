@@ -23,7 +23,8 @@ with `xeft-ignore-extension`.
 
 By default, Xeft only searches for first level files in
 `xeft-directory`, to make it search recursively, set `xeft-recursive`
-to t.
+to t. Also beware that Xeft ignores search phrases shorter than three
+characters, unless they are CJK characters.
 
 See the “xeft” customize group for more custom options and faces.
 
