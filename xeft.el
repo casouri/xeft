@@ -40,15 +40,18 @@
 ;;
 ;; Note that:
 ;;
-;; 1. Xeft only looks for first-level files in ‘xeft-directory’. Files
+;; 1. Xeft ignores search phrases shorter than three characters,
+;;    unless they are CJK characters.
+;;
+;; 2. Xeft only looks for first-level files in ‘xeft-directory’. Files
 ;;    in sub-directories are not searched unless ‘xeft-recursive’ is
 ;;    non-nil.
 ;;
-;; 2. Xeft creates a new file by using the search phrase as the
+;; 3. Xeft creates a new file by using the search phrase as the
 ;;    filename and title. If you want otherwise, redefine
 ;;    ‘xeft-create-note’ or ‘xeft-filename-fn’.
 ;;
-;; 3. Xeft saves the current window configuration before switching to
+;; 4. Xeft saves the current window configuration before switching to
 ;;    Xeft buffer. When Xeft buffer is killed, Xeft restores the saved
 ;;    window configuration.
 ;;
