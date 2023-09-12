@@ -127,9 +127,9 @@ to do it.
 
 ```emacs-lisp
 ;; Don't follow symlinks.
-(setq xeft-recusive t)
+(setq xeft-recursive t)
 ;; Follow symlinks.
-(setq xeft-recusive 'follow-symlinks)
+(setq xeft-recursive 'follow-symlinks)
 ```
 
 **How to make the preview pane to show up automatically?**
