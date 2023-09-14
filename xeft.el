@@ -597,7 +597,7 @@ title."
   (let ((bol (point)) title)
     (end-of-line)
     (setq title (buffer-substring-no-properties bol (point)))
-    (if (eq title "")
+    (if (equal title "")
         (file-name-base file)
       title)))
 
