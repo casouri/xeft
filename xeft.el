@@ -254,9 +254,11 @@ let xeft recreate it."
            (locate-library "xeft.el" t)))
          (prefix (concat "PREFIX="
                          (read-string "PREFIX (empty by default): ")))
+         (cxx (concat "CXX="
+                         (read-string "CXX (empty by default): ")))
          (buffer (get-buffer-create "*xeft compile*")))
     (if (zerop (let ((inhibit-read-only t))
-                 (call-process "make" nil buffer t prefix)))
+                 (call-process "make" nil buffer t prefix cxx)))
         (progn (message "Successfully compiled the module :-D") t)
       (pop-to-buffer buffer)
       (compilation-mode)
