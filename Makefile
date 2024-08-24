@@ -1,9 +1,9 @@
 .POSIX:
 PREFIX ?= /usr/local
 CXX ?= g++
-CXXFLAGS = -fPIC -I$(PREFIX)/include -std=c++11
-LDFLAGS = -L$(PREFIX)/lib
-LDLIBS = -lxapian
+CXXFLAGS ?= -fPIC -I$(PREFIX)/include -std=c++11
+LDFLAGS ?= -L$(PREFIX)/lib
+LDLIBS ?= -lxapian
 
 # Dylib extensions.
 ifeq ($(OS),Windows_NT)

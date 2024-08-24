@@ -242,6 +242,11 @@ from the database, you need to delete the database on disk and
 let xeft recreate it."
   :type 'function)
 
+(defcustom xeft-compile-args nil
+  "Compilation flags for compiling xeft-lite.
+If non-nil, Xeft passes this list of args to make to compile xeft-lite."
+  :type '(list string))
+
 ;;; Compile
 
 (defun xeft--compile-module ()
@@ -252,11 +257,13 @@ let xeft recreate it."
   (let* ((default-directory
           (file-name-directory
            (locate-library "xeft.el" t)))
-         (prefix (concat "PREFIX="
-                         (read-string "PREFIX (empty by default): ")))
+         (args
+          (or xeft-compile-args
+              (list (concat "PREFIX="
+                            (read-string "PREFIX (empty by default): ")))))
          (buffer (get-buffer-create "*xeft compile*")))
     (if (zerop (let ((inhibit-read-only t))
-                 (call-process "make" nil buffer t prefix)))
+                 (apply #'call-process "make" nil buffer t args)))
         (progn (message "Successfully compiled the module :-D") t)
       (pop-to-buffer buffer)
       (compilation-mode)
