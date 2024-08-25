@@ -93,6 +93,19 @@ I can’t test it but on windows you can get msys2 and
 `mingw-w64-x86_64-xapian-core` and `make` should just work. Thanks to
 pRot0ta1p for reporting this.
 
+If you’re using Emacs from Snap, you need to use the gcc bundled with
+the snap package. Try setting `xeft-compile-args` before invoking
+`xeft`:
+
+``` elisp
+(setq xeft-compile-args
+  '("PREFIX=/snap/emacs/current"
+    "CXX=/snap/emacs/current/usr/bin/g++-10 --sysroot /snap/emacs/current/"))
+```
+
+Thanks to fapdash for this tip and alexmurray for adding xapian to
+Emacs’ Snap bundle!
+
 # notdeft
 
 I owe many thanks to the author of notdeft. I don’t really know C++ or
