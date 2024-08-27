@@ -85,9 +85,10 @@ You can also build by command line:
 make PREFIX=/opt/local
 ```
 
-Here `/opt/local` is the default prefix of macports, which is what I
-used to install Xapian. Homebrew and Linux users probably can leave it
-empty.
+Here `/opt/local` is the default prefix of macports, which is what
+I used to install Xapian. If you use Homebrew on an Apple Silicon
+device, the prefix must be set to `/opt/homebrew` instead. Other
+Mac users as well as Linux users can probably can leave it empty.
 
 I can’t test it but on windows you can get msys2 and
 `mingw-w64-x86_64-xapian-core` and `make` should just work. Thanks to
