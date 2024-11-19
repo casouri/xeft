@@ -842,6 +842,13 @@ non-nil, display all results."
                  ;; 16 is just larger than 15, so we will know it when
                  ;; there are more results.
                  0 (if full 2147483647 16))))
+        ;; Sort results by last access time.
+        (setq file-list
+              (cl-stable-sort file-list
+                              (lambda (f1 f2)
+                                (not (time-less-p
+                                      (nth 4 (file-attributes f1))
+                                      (nth 4 (file-attributes f2)))))))
         (when (and (null full) (> (length file-list) 15))
           (setq file-list (cl-subseq file-list 0 15)
                 list-clipped t))
