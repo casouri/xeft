@@ -72,6 +72,13 @@ Functions you can customize to alter Xeft’s behavior:
   `xeft-directory-filter` are not flexible enough, this function gives
   you ultimate control over which files to index.
 
+When Xeft reindexes a file, the changes are not immediately persisted
+to the DB file on disk. Instead Xeft periodically commit the changes
+to disk using an idle timer. The exact idle delay can be customized
+with `xeft-periodic-commit-timer-idle-delay`. But make sure to
+customize it before the first call of `xeft`, in which the idle timer
+is created.
+
 # Building the dynamic module
 
 If the dynamic module is not installed yet, Xeft will automatically
