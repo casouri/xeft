@@ -42,6 +42,10 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "emacs-module.h"
 #include "emacs-module-prelude.h"
 
+#if defined _WIN32
+#include <Windows.h>
+#endif
+
 using namespace std;
 
 int plugin_is_GPL_compatible;
@@ -113,6 +117,37 @@ hash_path (string path)
     }
 }
 
+#ifdef _WIN32
+static std::wstring ConvertUtf8ToWide(const std::string& str)
+{
+    int count = MultiByteToWideChar(CP_UTF8, 0, str.c_str(), str.length(), nullptr, 0);
+    std::wstring wstr(count, 0);
+    MultiByteToWideChar(CP_UTF8, 0, str.c_str(), str.length(), &wstr[0], count);
+    return wstr;
+}
+
+static std::string ConvertWideToANSI(const std::wstring& wstr)
+{
+    int count = WideCharToMultiByte(CP_ACP, 0, wstr.c_str(), wstr.length(), nullptr, 0, nullptr, nullptr);
+    std::string str(count, 0);
+    WideCharToMultiByte(CP_ACP, 0, wstr.c_str(), -1, &str[0], count, nullptr, nullptr);
+    return str;
+}
+
+static std::string GetConvertedWindowsPath(const std::string &path)
+{
+    std::string cvtPath = path;
+    // Code pages for reference https://learn.microsoft.com/zh-tw/windows/win32/intl/code-page-identifiers
+    if (65001 != GetACP())
+    {
+        auto wsPath = ConvertUtf8ToWide(path);
+        cvtPath = ConvertWideToANSI(wsPath);
+    }
+
+    return cvtPath;
+}
+#endif
+
 // Reindex the file at PATH, using database at DBPATH. Throws
 // cannot_open_file. Both path must be absolute. Normally only reindex
 // if file has change since last index, if FORCE is true, always
@@ -128,7 +163,13 @@ reindex_file
   struct stat st;
   time_t file_mtime;
   off_t file_size;
+
+#if defined _WIN32
+  auto cvtPath = GetConvertedWindowsPath(path);
+  if (stat (cvtPath.c_str(), &st) == 0)
+#else
   if (stat (path.c_str(), &st) == 0)
+#endif
     {
       file_mtime = st.st_mtime;
       file_size = st.st_size;
@@ -145,6 +186,10 @@ reindex_file
   // modified.
   if (dbpath != cached_dbpath)
     {
+      if (cached_dbpath != "")
+		{
+		  database.close();
+		}
       database = Xapian::WritableDatabase
         (dbpath, Xapian::DB_CREATE_OR_OPEN);
       cached_dbpath = dbpath;
@@ -212,6 +257,10 @@ query_term
   // See reindex_file for the reason for caching the database object.
   if (dbpath != cached_dbpath)
     {
+      if (cached_dbpath != "")
+		{
+		  database.close();
+		}
       database = Xapian::WritableDatabase
         (dbpath, Xapian::DB_CREATE_OR_OPEN);
       cached_dbpath = dbpath;
@@ -244,7 +293,7 @@ query_term
         (term, Xapian::QueryParser::FLAG_CJK_NGRAM
          | Xapian::QueryParser::FLAG_PARTIAL);
     }
-  
+
   Xapian::Enquire enquire (database);
   enquire.set_query (query);
 
@@ -341,7 +390,7 @@ Fxapian_lite_reindex_file
 
   emacs_value lisp_lang = nargs < 3 ? emp_intern (env, "nil") : args[2];
   emacs_value lisp_force = nargs < 4 ? emp_intern (env, "nil") : args[3];
-  
+
   string path = copy_string (env, lisp_path);
   string dbpath = copy_string (env, lisp_dbpath);
   bool force = !NILP (env, lisp_force);
@@ -349,7 +398,7 @@ Fxapian_lite_reindex_file
   string lang = NILP (env, lisp_lang) ?
     "en" : copy_string (env, lisp_lang);
   CHECK_EXIT (env);
-  
+
   // Do the work.
   bool indexed;
   try
@@ -475,6 +524,51 @@ Fxapian_lite_query_term
   return emp_funcall (env, "reverse", 1, ret);
 }
 
+static const char *xapian_lite_close_database_doc =
+  "By closing the databse, you allow other xapian-lite instances to\n"
+  "access the database. In addition, closing the database commits all the\n"
+  "pending modifications to the database done by\n"
+  "`xapian-lite-reindex-file'. (For performance reasons, modifications to\n"
+  "the database is only committed to the disk after 10000 changes or when\n"
+  "closing the database.) It’s a good idea to close the database\n"
+  "periodically so database modifications aren’t lost due to unexpected\n"
+  "Emacs crash.\n"
+  "\n"
+  "There’s no need to explicitly reconnect to the database, since any\n"
+  "subsequent access will automatically reconnect to it.\n"
+  "\n"
+  "(fn DBPATH)";
+
+static emacs_value
+Fxapian_lite_close_database
+(emacs_env *env, ptrdiff_t nargs, emacs_value args[], void *data)
+  EMACS_NOEXCEPT
+{
+  emacs_value lisp_dbpath = args[0];
+
+  if (NILP (env,
+            emp_funcall (env, "file-name-absolute-p", 1, lisp_dbpath)))
+    {
+      emp_signal_message1 (env, "xapian-lite-file-error",
+                           "DBPATH is not a absolute path");
+      return NULL;
+    }
+
+  lisp_dbpath = emp_funcall (env, "expand-file-name", 1, lisp_dbpath);
+  string dbpath = copy_string (env, lisp_dbpath);
+
+  /* If cached_dbpath == "", there's no database to close. If dbpath
+     != cached_dbpath, the database that the user wants to close is
+     already closed. */
+  if (cached_dbpath != "" && dbpath == cached_dbpath)
+	{
+	  database.close();
+	  cached_dbpath = "";
+	}
+
+  return emp_intern (env, "nil");
+}
+
 int
 emacs_module_init (struct emacs_runtime *ert) EMACS_NOEXCEPT
 {
@@ -497,6 +591,9 @@ emacs_module_init (struct emacs_runtime *ert) EMACS_NOEXCEPT
   emp_define_function(env, "xapian-lite-query-term", 4, 4,
                   &Fxapian_lite_query_term,
                   xapian_lite_query_term_doc);
+  emp_define_function(env, "xapian-lite-close-database", 1, 1,
+                  &Fxapian_lite_close_database,
+                  xapian_lite_close_database_doc);
 
   emp_provide (env, "xapian-lite");
 
