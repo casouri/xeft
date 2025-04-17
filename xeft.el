@@ -381,6 +381,25 @@ If success return non-nil, otherwise return nil."
     (insert "\n\nInsert search phrase and press RET to search.")
     (goto-char (point-min))))
 
+(defvar xeft-periodic-commit-timer-idle-delay 60
+  "Whenever Emacs is idle for this many seconds, commit changes to DB.
+
+This variable must be customized before the first call to ‘xeft’, in
+which we setup the idle timer.")
+
+(defvar xeft--periodic-commit-timer nil
+  "Timer for the periodic commit routine (‘xeft--periodic-commit’).")
+
+(defun xeft--periodic-commit ()
+  "Commit DB modifications to disk by closing the DB.
+
+This is called periodically so modifications made to DB are saved even
+if there’s a Emacs crash."
+  (when (fboundp 'xapian-lite-close-database)
+    (xapian-lite-close-database xeft-database))
+  ;; Immediately query something so we re-open the DB to prevent
+  ;; someone else from locking it for themselves. __MY__ database!
+  (xapian-lite-query-term "AAAAAAAAAAA" xeft-database 0 10))
 
 ;;; Userland
 
@@ -408,7 +427,12 @@ If success return non-nil, otherwise return nil."
     ;; some file are changed without Xeft noticing.
     (xeft-full-reindex)
     ;; Also regenerate newest file cache, for the same reason as above.
-    (xeft--front-page-cache-refresh)))
+    (xeft--front-page-cache-refresh)
+    (unless xeft--periodic-commit-timer
+      (setq xeft--periodic-commit-timer
+            (run-with-idle-timer
+             xeft-periodic-commit-timer-idle-delay
+             t #'xeft--periodic-commit)))))
 
 (defun xeft-create-note ()
   "Create a new note with the current search phrase as the title."
@@ -473,6 +497,7 @@ the database."
   (condition-case _
       (dolist (file (funcall xeft-file-list-function))
         (xapian-lite-reindex-file file xeft-database))
+
     (xapian-lite-database-lock-error
      (message "The Xeft database is locked (maybe there is another Xeft instance running) so we will skip indexing for now"))
     (xapian-lite-database-corrupt-error
