@@ -27,6 +27,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include <exception>
 #include <iterator>
 #include <cstdarg>
+#include <string_view>
 
 #include <stdlib.h>
 #include <assert.h>
@@ -80,11 +81,30 @@ int plugin_is_GPL_compatible;
 static const Xapian::valueno DOC_MTIME = 0;
 // The index of the document value that store the file path.
 static const Xapian::valueno DOC_FILEPATH = 1;
+// If a stretch of text contains only base64 characters and exceeds
+// this length, we consider it base64 text and skip it when indexing.
+// I chose 70 because some base64 encoding has line wrapping with 76
+// characters per line. This might cause the indexer to exclude some
+// urls from indexing too, but we probably don't want to index urls
+// anyway.
+static const size_t BASE64_LEN_THRESHOLD = 70;
 
 static Xapian::WritableDatabase database;
 static string cached_dbpath = "";
 
 class xapian_lite_cannot_open_file: public exception {};
+
+static bool
+is_base64_char (char character)
+{
+  return (character >= 'A' && character <= 'z')
+	|| (character >= '0' && character <= '9')
+	|| (character == '+')
+	|| (character == '/')
+	|| (character == '-')
+	|| (character == '_')
+	|| (character == '=');
+}
 
 // Return the hash of KEY.
 static uint64_t
@@ -217,6 +237,8 @@ reindex_file
       ifstream infile (path);
       string content ((istreambuf_iterator<char>(infile)),
                       (istreambuf_iterator<char>()));
+
+      std::string_view content_view = std::string_view(content);
       // Create the indexer.
       Xapian::TermGenerator indexer;
       Xapian::Stem stemmer (lang);
@@ -228,8 +250,61 @@ reindex_file
       // Index file content.
       Xapian::Document new_doc;
       indexer.set_document (new_doc);
-      indexer.index_text (content);
-      // Set doc info.
+
+	  // Index the file, skipping base64 text.
+	  Xapian::Utf8Iterator iter;
+	  size_t unindexed_start = 0;
+	  size_t base64_start = 0;
+	  bool prev_char_is_base64 = false;
+	  int mode = 0;
+      for (int idx = 0; idx < content.length (); idx++)
+		{
+		  bool this_char_is_base64 = is_base64_char (content[idx]);
+		  switch (mode)
+			{
+			// Looking for base64 start.
+			case 0:
+			  if (!prev_char_is_base64 && this_char_is_base64)
+				{
+				  base64_start = idx;
+				  mode = 1;
+				  break;
+				}
+			// Found a base64 start, keep reading and see if this is
+			// actually base64 text.
+			case 1:
+			  if (!this_char_is_base64)
+				{
+				  mode = 0;
+				  break;
+				}
+              if (idx - base64_start > BASE64_LEN_THRESHOLD)
+				{
+				  mode = 2;
+				  break;
+                }
+			// Detected base64, read until the end of the base64
+			// text.
+			case 2:
+              if (!this_char_is_base64)
+				{
+				  iter.assign (&content[unindexed_start], base64_start - unindexed_start);
+				  indexer.index_text (iter);
+
+				  mode = 0;
+				  unindexed_start = idx;
+				  break;
+                }
+            }
+
+		  prev_char_is_base64 = this_char_is_base64;
+        }
+
+	  // Index the remaining content.
+	  iter.assign (&content[unindexed_start], content.length () - unindexed_start);
+	  indexer.index_text (iter);
+
+	  // Set doc info.
       new_doc.add_boolean_term (termID);
       // We store the path in value, no need to use set_data.
       new_doc.add_value (DOC_FILEPATH, path);
