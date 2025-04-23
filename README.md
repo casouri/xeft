@@ -73,11 +73,20 @@ Functions you can customize to alter Xeft’s behavior:
   you ultimate control over which files to index.
 
 When Xeft reindexes a file, the changes are not immediately persisted
-to the DB file on disk. Instead Xeft periodically commit the changes
-to disk using an idle timer. The exact idle delay can be customized
-with `xeft-periodic-commit-timer-idle-delay`. But make sure to
-customize it before the first call of `xeft`, in which the idle timer
-is created.
+to the DB file on disk. Since version v3.4, Xeft periodically commit
+the changes to disk using an idle timer. The exact idle delay can be
+customized with `xeft-periodic-commit-timer-idle-delay`. But make sure
+to customize it before the first call of `xeft`, in which the idle
+timer is created.
+
+# Embedded images in text files
+
+Since version v3.5, Xeft can recognize embedded base64 encoding in the
+text, and skip them when indexing. If a stretch of text contains only
+characters used in base64 encoding, and is longer than 70 characters,
+it it considered base64 text and is skipped when indexing. This will
+cause Xeft to skip some longer urls since `/` is used in base64. The
+length threshold of 70 is hard-coded.
 
 # Building the dynamic module
 
