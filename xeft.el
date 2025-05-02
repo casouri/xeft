@@ -5,7 +5,7 @@
 ;; Author: Yuan Fu <casouri@gmail.com>
 ;; Maintainer: Yuan Fu <casouri@gmail.com>
 ;; URL: https://sr.ht/~casouri/xeft
-;; Version: 3.5
+;; Version: 3.6
 ;; Keywords: Applications, Note, Searching
 ;; Package-Requires: ((emacs "26.0"))
 
