@@ -1,7 +1,7 @@
 .POSIX:
 PREFIX ?= /usr/local
 CXX ?= g++
-CXXFLAGS ?= -fPIC -I$(PREFIX)/include -std=c++11
+CXXFLAGS ?= -fPIC -I$(PREFIX)/include -std=c++17
 LDFLAGS ?= -L$(PREFIX)/lib
 LDLIBS ?= -lxapian
 
