@@ -1,0 +1,36 @@
+name: MSYS2
+on: [push, pull_request, workflow_dispatch]
+
+jobs:
+  msys2:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    strategy:
+      matrix:
+        include:
+          - { sys: mingw64, env: x86_64 }
+          - { sys: mingw32, env: i686 }
+          - { sys: ucrt64,  env: ucrt-x86_64 }
+    steps:
+      - uses: actions/checkout@v3
+      - uses: msys2/setup-msys2@v2
+        id: msys2
+        with:
+          msystem: ${{matrix.sys}}
+          install: mingw-w64-${{matrix.env}}-openssl mingw-w64-${{matrix.env}}-xapian-core git curl base-devel mingw-w64-${{matrix.env}}-toolchain
+      - name: CI-Build
+        id: build
+        run: |
+          echo 'Running in MSYS2!'
+          cd /home/runneradmin/
+          git clone https://github.com/casouri/xeft
+          cd xeft
+          make
+          cp /${{matrix.sys}}/bin/libxapian-30.dll ./
+      - name: "Upload DLLs"
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.env}}-xeft
+          path: ${{ steps.msys2.outputs.msys2-location }}/home/runneradmin/xeft/*.dll
