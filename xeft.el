@@ -270,11 +270,27 @@ If non-nil, Xeft passes this list of args to make to compile xeft-lite."
       (message "Failed to compile the module")
       nil)))
 
-(defvar xeft--linux-module-url "https://git.sr.ht/~casouri/xapian-lite/refs/download/v2.0.0/xapian-lite-amd64-linux.so"
-  "URL for pre-built dynamic module for Linux.")
+(defvar xeft--pre-built-binary-urls
+  '((amd64-linux "https://github.com/casouri/xapian-lite/releases/download/v2.1.0/xapian-lite-amd64-linux.so")
+    (amd64-macos "https://github.com/casouri/xapian-lite/releases/download/v2.1.0/xapian-lite-amd64-macos.dylib")
+    (arm64-macos "https://github.com/casouri/xapian-lite/releases/download/v2.1.0/xapian-lite-arm64-macos.dylib")
+    (mingw32 "https://github.com/casouri/xapian-lite/releases/download/v2.1.0/xapian-lite-mingw32.dll"
+             "https://github.com/casouri/xapian-lite/releases/download/v2.1.0/libxapian-30-mingw32.dll")
+    (mingw64 "https://github.com/casouri/xapian-lite/releases/download/v2.1.0/xapian-lite-mingw64.dll"
+             "https://github.com/casouri/xapian-lite/releases/download/v2.1.0/libxapian-30-mingw64.dll")
+    (ucrt64 "https://github.com/casouri/xapian-lite/releases/download/v2.1.0/xapian-lite-ucrt64.dll"
+            "https://github.com/casouri/xapian-lite/releases/download/v2.1.0/libxapian-30-ucrt64.dll"))
+  "An alist of URL for pre-built binaries.")
 
-(defvar xeft--mac-module-url "https://git.sr.ht/~casouri/xapian-lite/refs/download/v2.0.0/xapian-lite-amd64-macos.dylib"
-  "URL for pre-built dynamic module for Mac.")
+(defun xeft--remove-triplets-from-filename (filename)
+  "Remove triples like amd64-linux from FILENAME and return it."
+  (replace-regexp-in-string (rx (or "-amd64-linux"
+                                    "-amd64-macos"
+                                    "-mingw32"
+                                    "-mingw64"
+                                    "-ucrt64"))
+                            ""
+                            filename))
 
 (defun xeft--require-xapian-lite ()
   "Require ‘xapian-lite’, if non-exist, try to build or download it.
@@ -305,18 +321,33 @@ If success return non-nil, otherwise return nil."
                                "GNU/Linux on Intel/AMD x86_64 CPU")
                            (?2 "amd64-macOS"
                                "macOS on Intel/AMD x86_64 CPU")
+                           (?3 "arm64-macOS"
+                               "macOS on ARM CPU (Apple Silicon)")
+                           (?4 "mingw32"
+                               "Emacs compiled with MinGW on Windows")
+                           (?5 "mingw64"
+                               "Emacs compiled with minGW-w64 on Windows")
+                           (?6 "ucrt64"
+                               "Emacs compiled with UCRT64 runtime on Windows")
                            (?q "quit")))))
-           (module-path (expand-file-name
-                         "xapian-lite.so"
-                         (file-name-directory
-                          (locate-library "xeft.el" t))))
-           (url (pcase system
-                  (?1 xeft--linux-module-url)
-                  (?2 xeft--mac-module-url))))
-      (when (and url
+           (xeft-lib-dir (file-name-directory
+                          (locate-library "xeft.el" t)))
+           (key (pcase system
+                  (?1 'amd64-linux)
+                  (?2 'amd64-macos)
+                  (?3 'arm64-macos)
+                  (?4 'mingw32)
+                  (?5 'mingw64)
+                  (?6 'ucrt64)))
+           (urls (alist-get key xeft--pre-built-binary-urls)))
+      (when (and urls
                  (y-or-n-p (format "Downloading from %s, is that ok?"
-                                   url)))
-        (url-copy-file url module-path)))))
+                                   (string-join urls ",\n"))))
+        (dolist (url urls)
+          (url-copy-file url (expand-file-name
+                              (xeft--remove-triplets-from-filename
+                               (file-name-nondirectory url))
+                              xeft-lib-dir)))))))
 
 ;;; Helpers
 
